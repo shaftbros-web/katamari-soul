@@ -1,9 +1,8 @@
-
 <!DOCTYPE html><html lang="ja">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-  <title>Attach-Attack — モバイル見下ろしアクション v1.1</title>
+  <title>Attach-Attack — モバイル見下ろしアクション v1.2</title>
   <style>
     :root{ --bg:#0a0f16; --ink:#e6edf3; --muted:#9aa4b2; --accent:#60a5fa; --danger:#ef4444; --ok:#22c55e; --panel:#0f172a; }
     *{ box-sizing:border-box; }
@@ -50,11 +49,11 @@
           <h2>Attach-Attack</h2>
           <p>落ちているアイテムを拾って本体にくっつけ、さらにアイテム同士も連結させて強力に！<br>アイテムは耐久値が減ると小さくなり、ゼロで壊れます。<br>敵はザコ3種・中ボス・ボス。ボスを倒すとクリアです。</p>
           <div class="slider-box">
-            <label for="playerLife">初期ライフ</label>
+            <label for="playerLife">初期ライフ: <span id="lblLife">100</span></label>
             <input type="range" id="playerLife" min="50" max="200" value="100">
           </div>
           <div class="slider-box">
-            <label for="enemyCount">初期ザコ数</label>
+            <label for="enemyCount">初期ザコ数: <span id="lblEnemy">12</span></label>
             <input type="range" id="enemyCount" min="5" max="30" value="12">
           </div>
           <button id="startBtn">ゲーム開始</button>
@@ -62,84 +61,185 @@
       </div>
     </div>
   </div>  <script>
-  // Utility
-  const rand=(a,b)=>Math.random()*(b-a)+a;
-  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-  const dist=(x1,y1,x2,y2)=>Math.hypot(x2-x1,y2-y1);
-  const now=()=>performance.now();
+// ===== Utility =====
+const rand=(a,b)=>Math.random()*(b-a)+a;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const dist=(x1,y1,x2,y2)=>Math.hypot(x2-x1,y2-y1);
+const now=()=>performance.now();
 
-  const cv=document.getElementById('cv');
-  const ctx=cv.getContext('2d');
-  function resize(){
-    const dpr=window.devicePixelRatio||1;
-    cv.width=Math.round(cv.clientWidth*dpr); cv.height=Math.round(cv.clientHeight*dpr);
-    ctx.setTransform(dpr,0,0,dpr,0,0);
+// ===== Canvas Setup (HiDPI) =====
+const cv=document.getElementById('cv');
+const ctx=cv.getContext('2d');
+function resize(){
+  const dpr=window.devicePixelRatio||1;
+  cv.width=Math.round(cv.clientWidth*dpr); cv.height=Math.round(cv.clientHeight*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+new ResizeObserver(resize).observe(cv); resize();
+
+// ===== Input: Virtual Joystick + Pickup =====
+const joy=document.getElementById('joy');
+const stick=document.getElementById('stick');
+const actBtn=document.getElementById('actBtn');
+let joyAct=false, joyDX=0, joyDY=0;
+function joyHandle(e){
+  const rect=joy.getBoundingClientRect();
+  const p=(e.touches? e.touches[0]:e);
+  const x=p.clientX-rect.left-rect.width/2; const y=p.clientY-rect.top-rect.height/2;
+  const r=rect.width/2-8; const len=Math.hypot(x,y); const s=len>r? r/len:1;
+  joyDX=(x*s)/r; joyDY=(y*s)/r; stick.style.transform=`translate(${joyDX*r}px, ${joyDY*r}px)`;
+}
+joy.addEventListener('pointerdown',e=>{ joyAct=true; joy.setPointerCapture(e.pointerId); joyHandle(e); });
+joy.addEventListener('pointermove',e=>{ if(joyAct) joyHandle(e); });
+joy.addEventListener('pointerup',e=>{ joyAct=false; joyDX=joyDY=0; stick.style.transform='translate(0,0)'; });
+
+let key={};
+window.addEventListener('keydown',e=>{ key[e.key]=true; });
+window.addEventListener('keyup',e=>{ key[e.key]=false; });
+
+// ===== Game State =====
+const STATE={ TITLE:0, PLAY:1, OVER:2, CLEAR:3 };
+let state=STATE.TITLE;
+let t0=now(), dt=0;
+const world={ w:2000, h:1200 };
+const cam={ x:0, y:0, shake:0 };
+
+// ===== Player =====
+const player={ x:world.w/2, y:world.h/2, r:18, speed:220, life:100, maxLife:100, dir:0, inv:0, items:[] };
+
+// ===== Items =====
+function makeItem(x,y){
+  const size=rand(40,70); // bigger base size
+  const max=rand(60,120);
+  return { id:crypto.randomUUID(), x,y, size, maxDur:max, dur:max, attached:false, parent:null, angle:rand(0,Math.PI*2), off:rand(30,54) };
+}
+const items=[];
+
+function attachToPlayer(it){
+  it.attached=true; it.parent=null; it.off=Math.max(26, it.size*0.6); it.angle=player.dir; player.items.push(it);
+}
+function attachToItem(target, it){
+  it.attached=true; it.parent=target; it.off=(target.size+it.size)/2 + 8; it.angle=target.angle; player.items.push(it);
+}
+
+function tryPickup(){
+  let best=null, bd=1e9;
+  for(const it of items){ if(it.attached) continue; const d=dist(player.x,player.y,it.x,it.y); if(d<bd && d<90){ bd=d; best=it; } }
+  if(best) attachToPlayer(best);
+}
+actBtn.addEventListener('click',()=>{ if(state===STATE.PLAY) tryPickup(); });
+cv.addEventListener('pointerdown',e=>{ const rect=cv.getBoundingClientRect(); if(e.clientX<rect.width*0.4 && state===STATE.PLAY) tryPickup(); });
+
+// ===== Title (sliders already in HTML) =====
+function showTitle(){ document.getElementById('overlay').style.display='grid'; }
+function hideTitle(){ document.getElementById('overlay').style.display='none'; }
+
+document.getElementById('startBtn').addEventListener('click',()=>{
+  player.maxLife=parseInt(document.getElementById('playerLife').value);
+  player.life=player.maxLife;
+  const enemiesInit=parseInt(document.getElementById('enemyCount').value); // reserved for later
+  startGame();
+});
+
+function reset(){
+  player.x=world.w/2; player.y=world.h/2; player.dir=0; player.inv=0; player.items.length=0;
+  items.length=0; for(let i=0;i<30;i++) items.push(makeItem(rand(80,world.w-80), rand(80,world.h-80)));
+}
+function startGame(){ reset(); state=STATE.PLAY; hideTitle(); }
+
+// ===== Update & Draw =====
+function update(dt){
+  // movement
+  let ax=0, ay=0;
+  if(joyDX||joyDY){ ax=joyDX; ay=joyDY; }
+  if(key['ArrowLeft']||key['a']||key['A']) ax-=1;
+  if(key['ArrowRight']||key['d']||key['D']) ax+=1;
+  if(key['ArrowUp']||key['w']||key['W']) ay-=1;
+  if(key['ArrowDown']||key['s']||key['S']) ay+=1;
+  const len=Math.hypot(ax,ay)||1; ax/=len; ay/=len;
+  player.x+=ax*player.speed*dt; player.y+=ay*player.speed*dt;
+  player.x=clamp(player.x,20,world.w-20); player.y=clamp(player.y,20,world.h-20);
+  if(ax||ay) player.dir=Math.atan2(ay,ax);
+
+  // position attached items
+  for(const it of player.items){
+    const par = it.parent || player;
+    const targetAng = (par===player ? player.dir : par.angle);
+    it.angle += (targetAng - it.angle)*0.2;
+    it.x = par.x + Math.cos(it.angle)*it.off;
+    it.y = par.y + Math.sin(it.angle)*it.off;
   }
-  new ResizeObserver(resize).observe(cv);
-  resize();
 
-  const joy=document.getElementById('joy');
-  const stick=document.getElementById('stick');
-  let joyAct=false, joyDX=0, joyDY=0;
-  function joyHandle(e){
-    const rect=joy.getBoundingClientRect();
-    const p=(e.touches? e.touches[0]:e);
-    const x=p.clientX-rect.left-rect.width/2; const y=p.clientY-rect.top-rect.height/2;
-    const r=rect.width/2-8; const len=Math.hypot(x,y); const s=len>r? r/len:1;
-    joyDX=(x*s)/r; joyDY=(y*s)/r; stick.style.transform=`translate(${joyDX*r}px, ${joyDY*r}px)`;
+  // ground items gentle wobble
+  for(const it of items){ if(it.attached) continue; it.angle += dt*0.4; }
+
+  // chain attach: if ground item touches player-attached items => attach
+  for(const it of items){ if(it.attached) continue;
+    let attached=false;
+    for(const at of player.items){ if(dist(it.x,it.y,at.x,at.y) < (at.size*0.5 + it.size*0.4)) { attachToItem(at,it); attached=true; break; } }
+    if(attached) continue;
+    // slight magnet to player
+    const d0=dist(it.x,it.y,player.x,player.y);
+    if(d0<90){ const a=Math.atan2(player.y-it.y, player.x-it.x); it.x+=Math.cos(a)*70*dt; it.y+=Math.sin(a)*70*dt; }
   }
-  joy.addEventListener('pointerdown',e=>{ joyAct=true; joy.setPointerCapture(e.pointerId); joyHandle(e); });
-  joy.addEventListener('pointermove',e=>{ if(joyAct) joyHandle(e); });
-  joy.addEventListener('pointerup',e=>{ joyAct=false; joyDX=joyDY=0; stick.style.transform='translate(0,0)'; });
+}
 
-  const STATE={ TITLE:0, PLAY:1, OVER:2, CLEAR:3 };
-  let state=STATE.TITLE;
-  const world={ w:2000, h:1200 };
-  const cam={ x:0, y:0, shake:0 };
+function draw(){
+  // clear
+  ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,cv.width,cv.height); ctx.restore();
 
-  const player={ x:world.w/2, y:world.h/2, r:18, speed:220, life:100, maxLife:100, dir:0, inv:0, items:[] };
+  // camera follow
+  cam.x += ((player.x - cv.clientWidth/2) - cam.x)*0.08;
+  cam.y += ((player.y - cv.clientHeight/2) - cam.y)*0.08;
 
-  function makeItem(x,y){
-    const size=rand(36,60); // bigger base size
-    const max=rand(40,100);
-    return { id:crypto.randomUUID(), x,y, size, maxDur:max, dur:max, attached:false, angle:rand(0,Math.PI*2), off:rand(28,50), children:[] };
-  }
-  const items=[];
+  ctx.save(); ctx.translate(-cam.x, -cam.y);
+  // background grid
+  const step=64; ctx.strokeStyle='rgba(96,165,250,0.08)'; ctx.lineWidth=1; ctx.beginPath();
+  for(let x=Math.floor((cam.x-400)/step)*step; x<cam.x+cv.clientWidth+400; x+=step){ ctx.moveTo(x, cam.y-300); ctx.lineTo(x, cam.y+cv.clientHeight+300); }
+  for(let y=Math.floor((cam.y-300)/step)*step; y<cam.y+cv.clientHeight+300; y+=step){ ctx.moveTo(cam.x-400, y); ctx.lineTo(cam.x+cv.clientWidth+400, y); }
+  ctx.stroke();
 
-  function attachItem(base,newItem){
-    newItem.attached=true;
-    base.children.push(newItem);
-  }
+  // ground items
+  for(const it of items){ if(it.attached) continue; drawItem(it); }
 
-  // Example: attach detection
-  function updateAttachment(){
-    for(const base of player.items){
-      for(const it of items){ if(it.attached) continue; if(dist(base.x,base.y,it.x,it.y)<base.size){ attachItem(base,it); player.items.push(it);} }
-    }
-  }
+  // player
+  drawPlayer();
 
-  function drawItem(it){
-    const scale = clamp(it.dur/it.maxDur,0,1);
-    const s = it.size; // fixed actual size
-    ctx.save(); ctx.translate(it.x,it.y); ctx.rotate(it.angle);
-    ctx.fillStyle= it.attached? '#86efac':'#34d399';
-    ctx.beginPath(); ctx.arc(0,0,s*0.5,0,Math.PI*2); ctx.fill();
-    ctx.restore();
-  }
+  // attached items
+  for(const it of player.items){ drawItem(it); }
 
-  function showTitle(){
-    document.getElementById('overlay').style.display='grid';
-  }
-  document.getElementById('startBtn').addEventListener('click',()=>{
-    player.maxLife=parseInt(document.getElementById('playerLife').value);
-    player.life=player.maxLife;
-    startGame();
-  });
+  ctx.restore();
+}
 
-  function startGame(){
-    items.length=0; for(let i=0;i<20;i++) items.push(makeItem(rand(80,world.w-80), rand(80,world.h-80)));
-    state=STATE.PLAY; document.getElementById('overlay').style.display='none';
-  }
-  showTitle();
-  </script></body>
+function drawPlayer(){
+  ctx.save(); ctx.translate(player.x,player.y);
+  ctx.fillStyle = player.inv>0? 'rgba(96,165,250,0.9)':'#cbd5e1';
+  ctx.beginPath(); ctx.arc(0,0,player.r,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#60a5fa'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(0,0,player.r+2,player.dir-0.3,player.dir+0.3); ctx.stroke();
+  ctx.restore();
+}
+
+function drawItem(it){
+  const s = it.size; // attachedは実寸、未装着も固定サイズ(耐久縮小は今後反映可)
+  ctx.save(); ctx.translate(it.x,it.y); ctx.rotate(it.angle);
+  ctx.fillStyle = it.attached? '#86efac' : '#34d399';
+  ctx.beginPath(); ctx.arc(0,0,s*0.5,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+
+// ===== Loop =====
+function step(){
+  const nt=now(); dt=(nt-t0)/1000; t0=nt;
+  if(state===STATE.PLAY){ update(dt); }
+  draw();
+  requestAnimationFrame(step);
+}
+requestAnimationFrame(step);
+
+// ===== Start on Title =====
+showTitle();
+
+// Prevent touch scroll on canvas/joystick
+document.addEventListener('touchmove', e=>{ if(e.target.closest('canvas, #joy')) e.preventDefault(); }, {passive:false});
+</script></body>
 </html>
