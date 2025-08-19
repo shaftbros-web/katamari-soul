@@ -1,0 +1,399 @@
+<!DOCTYPE html><html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <title>Attach-Attack — モバイル見下ろしアクション v1.0</title>
+  <style>
+    :root{ --bg:#0a0f16; --ink:#e6edf3; --muted:#9aa4b2; --accent:#60a5fa; --danger:#ef4444; --ok:#22c55e; --panel:#0f172a; }
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; margin:0; background:var(--bg); color:var(--ink); font-family: system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif; }
+    #wrap{ display:grid; grid-template-rows:auto 1fr; height:100%; }
+    header{ padding:8px 12px; background:var(--panel); border-bottom:1px solid #1f2937; display:flex; align-items:center; gap:12px; }
+    header h1{ font-size:16px; margin:0; font-weight:700; letter-spacing:0.2px; }
+    header .sub{ color:var(--muted); font-size:12px; }
+    #game{ position:relative; height:100%; }
+    canvas{ width:100%; height:100%; touch-action:none; display:block; background: radial-gradient(1200px 800px at 50% 50%, #0b1220, #070a12 60%, #060910); }
+    #hud{ position:absolute; inset:0; pointer-events:none; }
+    .btn{ position:absolute; bottom:16px; right:16px; width:84px; height:84px; border-radius:50%; background:#111826aa; border:1px solid #273244; color:#cbd5e1; display:grid; place-items:center; font-weight:700; pointer-events:auto; user-select:none; }
+    .joy{ position:absolute; left:16px; bottom:16px; width:140px; height:140px; pointer-events:auto; }
+    .joy .base{ position:absolute; inset:0; border-radius:50%; background:#0b1220aa; border:1px solid #273244; }
+    .joy .stick{ position:absolute; left:50%; top:50%; width:72px; height:72px; margin-left:-36px; margin-top:-36px; border-radius:50%; background:#1f2937cc; border:1px solid #334155; }
+    #overlay{ position:absolute; inset:0; display:grid; place-items:center; pointer-events:auto; background:transparent; }
+    .panel{ background:#0b1220cc; border:1px solid #273244; padding:24px 20px; border-radius:16px; min-width:280px; text-align:center; box-shadow:0 10px 40px #0008; }
+    .panel h2{ margin:0 0 8px; font-size:20px; }
+    .panel p{ margin:0 0 12px; color:var(--muted); }
+    .panel .big{ font-size:28px; font-weight:800; margin:4px 0 12px; }
+    .panel button{ appearance:none; background:var(--accent); color:#081018; border:0; padding:10px 16px; border-radius:999px; font-weight:700; }
+    .bar{ position:absolute; left:12px; top:8px; width:min(520px, 60vw); height:14px; background:#111827aa; border:1px solid #273244; border-radius:10px; overflow:hidden; }
+    .bar .fill{ height:100%; background:linear-gradient(90deg, #22c55e, #83e07a); width:100%; }
+    .bar .txt{ position:absolute; inset:0; display:grid; place-items:center; font-size:11px; color:#d1d5db; text-shadow:0 1px 0 #000; }
+    .bossbar{ position:absolute; left:50%; transform:translateX(-50%); bottom:8px; width:min(720px, 80vw); height:16px; background:#111827aa; border:1px solid #273244; border-radius:10px; overflow:hidden; }
+    .bossbar .fill{ height:100%; background:linear-gradient(90deg, #f97316, #ef4444); width:100%; }
+    .bossbar .txt{ position:absolute; inset:0; display:grid; place-items:center; font-size:12px; color:#e5e7eb; text-shadow:0 1px 0 #000; letter-spacing:0.5px; }
+    .hint{ position:absolute; right:12px; top:8px; font-size:12px; color:#9ca3af; background:#0b1220aa; border:1px solid #273244; padding:6px 10px; border-radius:10px; }
+  </style>
+</head>
+<body>
+  <div id="wrap">
+    <header>
+      <h1>Attach-Attack</h1>
+      <div class="sub">スマホ用見下ろしアクション — アイテムを本体に〈くっつけて〉攻撃</div>
+    </header>
+    <div id="game">
+      <canvas id="cv" width="1280" height="720"></canvas>
+      <div id="hud">
+        <div class="bar" id="lifebar"><div class="fill"></div><div class="txt">LIFE</div></div>
+        <div class="hint">左：スティック移動／右：タップで拾う（近くのアイテム）<br>PCは WASD / ←→↑↓ で移動</div>
+        <div class="bossbar" id="bossbar" style="display:none"><div class="fill"></div><div class="txt">BOSS</div></div>
+      </div>
+      <div class="joy" id="joy">
+        <div class="base"></div>
+        <div class="stick" id="stick"></div>
+      </div>
+      <button class="btn" id="actBtn">PICK</button>
+      <div id="overlay">
+        <div class="panel" id="panel">
+          <h2>Attach-Attack</h2>
+          <div class="big">タップで開始</div>
+          <p>落ちているアイテムを拾って本体にくっつけ、当てて敵を倒そう。<br>アイテムには耐久値があり、削れると小さくなるよ。</p>
+          <p style="font-size:12px;color:#93a3b8;">v1.0 / GitHub Pages対応（単一HTML）</p>
+          <button id="startBtn">ゲーム開始</button>
+        </div>
+      </div>
+    </div>
+  </div>  <script>
+  // ===== Utility =====
+  const rand=(a,b)=>Math.random()*(b-a)+a;
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  const dist=(x1,y1,x2,y2)=>Math.hypot(x2-x1,y2-y1);
+  const now=()=>performance.now();
+
+  // ===== Canvas Setup (HiDPI) =====
+  const cv=document.getElementById('cv');
+  const ctx=cv.getContext('2d');
+  function resize(){
+    const dpr=window.devicePixelRatio||1;
+    const w=cv.clientWidth, h=cv.clientHeight;
+    cv.width=Math.round(w*dpr); cv.height=Math.round(h*dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  new ResizeObserver(resize).observe(cv);
+  resize();
+
+  // ===== Input: Virtual Joystick + Pickup Button =====
+  const joy=document.getElementById('joy');
+  const stick=document.getElementById('stick');
+  const actBtn=document.getElementById('actBtn');
+  let joyAct=false, joyDX=0, joyDY=0;
+  function joyHandle(e){
+    const rect=joy.getBoundingClientRect();
+    const p=(e.touches? e.touches[0]:e);
+    const x=p.clientX-rect.left-rect.width/2; const y=p.clientY-rect.top-rect.height/2;
+    const r=rect.width/2-8; const len=Math.hypot(x,y); const s=len>r? r/len:1;
+    joyDX=(x*s)/r; joyDY=(y*s)/r; // -1..1
+    stick.style.transform=`translate(${joyDX*r}px, ${joyDY*r}px)`;
+  }
+  joy.addEventListener('pointerdown',e=>{ joyAct=true; joy.setPointerCapture(e.pointerId); joyHandle(e); });
+  joy.addEventListener('pointermove',e=>{ if(joyAct) joyHandle(e); });
+  joy.addEventListener('pointerup',e=>{ joyAct=false; joyDX=joyDY=0; stick.style.transform='translate(0,0)'; });
+
+  let key={};
+  window.addEventListener('keydown',e=>{ key[e.key]=true; });
+  window.addEventListener('keyup',e=>{ key[e.key]=false; });
+
+  // ===== Game State =====
+  const STATE={ TITLE:0, PLAY:1, OVER:2, CLEAR:3 };
+  let state=STATE.TITLE;
+  let t0=now(), t=0, dt=0;
+
+  const world={ w:2000, h:1200 };
+  const cam={ x:0, y:0, shake:0 };
+
+  const player={ x:world.w/2, y:world.h/2, r:18, speed:220, life:100, maxLife:100, dir:0, inv:0, items:[] };
+
+  // Item: shape, size, durability, damage
+  function makeItem(x,y){
+    const kind=Math.floor(rand(0,3));
+    const max=rand(30,80);
+    const size=rand(16,36);
+    const dmg=rand(10,20);
+    const dist=Math.max(24, rand(26, 42));
+    return { id:crypto.randomUUID(), x,y, shape:['circle','square','bar'][kind], size, maxDur:max, dur:max, dmg, attached:false, angle:rand(0,Math.PI*2), off:dist };
+  }
+
+  const items=[];
+  for(let i=0;i<30;i++) items.push(makeItem(rand(80,world.w-80), rand(80,world.h-80)));
+
+  // Enemies
+  function enemy(type,x,y){
+    const e={ type, x, y, r: type==='boss'? 40: type==='mid'? 28: 16, hp:1, maxHp:1, vx:0, vy:0, cd:0 };
+    if(type==='z1'){ e.maxHp=e.hp=50; }
+    if(type==='z2'){ e.maxHp=e.hp=70; }
+    if(type==='z3'){ e.maxHp=e.hp=90; }
+    if(type==='mid'){ e.maxHp=e.hp=500; }
+    if(type==='boss'){ e.maxHp=e.hp=1200; }
+    return e;
+  }
+  const enemies=[]; const bullets=[]; const ebullets=[]; // player bullets unused; enemy bullets used by shooter
+
+  // Spawn control
+  let killCount=0, midSpawned=false, bossSpawned=false;
+  function spawnWave(n){
+    for(let i=0;i<n;i++){
+      const t=['z1','z2','z3'][Math.floor(rand(0,3))];
+      const x=Math.random()<0.5? rand(40, world.w*0.2): rand(world.w*0.8, world.w-40);
+      const y=rand(40, world.h-40);
+      enemies.push(enemy(t,x,y));
+    }
+  }
+  spawnWave(12);
+
+  // ===== Pickup (attach nearest) =====
+  function tryPickup(){
+    // nearest item within 64 px
+    let best=null, bd=1e9;
+    for(const it of items){ if(it.attached) continue; const d=dist(player.x,player.y,it.x,it.y); if(d<bd && d<72) { bd=d; best=it; } }
+    if(best){ best.attached=true; best.angle=player.dir; best.off=Math.max(26, best.off); player.items.push(best); // remove from ground
+      // Small heal on pickup
+      player.life=Math.min(player.maxLife, player.life+6);
+    }
+  }
+  actBtn.addEventListener('click',()=>{ if(state===STATE.PLAY) tryPickup(); });
+  cv.addEventListener('pointerdown',e=>{ // right side tap also pickup
+    const rect=cv.getBoundingClientRect();
+    if(e.clientX>rect.width*0.6 && state===STATE.PLAY) tryPickup();
+  });
+
+  // Start/Restart buttons
+  document.getElementById('startBtn').addEventListener('click',()=>{ startGame(); });
+  document.getElementById('overlay').addEventListener('click',e=>{
+    if(e.target.id==='overlay' && state!==STATE.PLAY) startGame();
+  });
+
+  function reset(){
+    player.x=world.w/2; player.y=world.h/2; player.life=player.maxLife; player.items.length=0; player.dir=0; player.inv=0;
+    items.length=0; for(let i=0;i<30;i++) items.push(makeItem(rand(80,world.w-80), rand(80,world.h-80)));
+    enemies.length=0; bullets.length=0; ebullets.length=0; killCount=0; midSpawned=false; bossSpawned=false;
+    spawnWave(12);
+  }
+  function startGame(){ reset(); state=STATE.PLAY; document.getElementById('overlay').style.display='none'; }
+
+  // ===== Game Loop =====
+  function step(){
+    const nt=now(); dt=(nt-t0)/1000; t0=nt; t+=dt;
+    if(state===STATE.PLAY) update(dt);
+    draw();
+    requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+
+  // ===== Update =====
+  function update(dt){
+    // Input -> velocity
+    let ax=0, ay=0;
+    if(joyDX||joyDY){ ax=joyDX; ay=joyDY; }
+    if(key['ArrowLeft']||key['a']||key['A']) ax-=1;
+    if(key['ArrowRight']||key['d']||key['D']) ax+=1;
+    if(key['ArrowUp']||key['w']||key['W']) ay-=1;
+    if(key['ArrowDown']||key['s']||key['S']) ay+=1;
+    const len=Math.hypot(ax,ay)||1; ax/=len; ay/=len;
+    player.x+=ax*player.speed*dt; player.y+=ay*player.speed*dt;
+    player.x=clamp(player.x,20,world.w-20); player.y=clamp(player.y,20,world.h-20);
+    if(ax||ay) player.dir=Math.atan2(ay,ax);
+    if(player.inv>0) player.inv-=dt;
+
+    // Attach item positioning (lead direction)
+    for(let i=0;i<player.items.length;i++){
+      const it=player.items[i];
+      const targetAng = player.dir + (i - (player.items.length-1)/2)*0.5; // spread
+      it.angle += (targetAng - it.angle)*0.2; // smooth
+      it.x = player.x + Math.cos(it.angle)*it.off;
+      it.y = player.y + Math.sin(it.angle)*it.off;
+    }
+
+    // Items on ground wobble
+    for(const it of items){ if(it.attached) continue; it.angle += dt*0.5; }
+
+    // Enemy AI
+    for(const e of enemies){
+      e.cd-=dt;
+      const dx=player.x-e.x, dy=player.y-e.y; const d=Math.hypot(dx,dy);
+      if(e.type==='z1'){ // chaser
+        const sp=80; e.vx=dx/d*sp; e.vy=dy/d*sp;
+      } else if(e.type==='z2'){ // wanderer
+        const sp=60; if(e.cd<=0){ e.cd=rand(0.6,1.2); const a=rand(0,Math.PI*2); e.vx=Math.cos(a)*sp; e.vy=Math.sin(a)*sp; }
+      } else if(e.type==='z3'){ // shooter — keeps distance and fires
+        const sp=70; const desired=220; const dir= (d>desired? 1: -1);
+        e.vx=dx/d*sp*dir; e.vy=dy/d*sp*dir;
+        if(e.cd<=0 && d<360){ e.cd=rand(1.0,1.6); shootAt(e.x,e.y, Math.atan2(dy,dx), 180); }
+      } else if(e.type==='mid'){
+        const sp=85; e.vx=dx/d*sp; e.vy=dy/d*sp; if(e.cd<=0){ e.cd=1.8; radialBurst(e.x,e.y,8, 220); }
+      } else if(e.type==='boss'){
+        const sp=90; // slow orbit + patterns
+        const a=Math.atan2(dy,dx); e.vx=Math.cos(a+Math.sin(t*0.7)*0.6)*sp*0.6; e.vy=Math.sin(a+Math.cos(t*0.7)*0.6)*sp*0.6;
+        if(e.cd<=0){ e.cd=1.4; spiral(e.x,e.y,14, 260); }
+      }
+      e.x+=e.vx*dt; e.y+=e.vy*dt; e.x=clamp(e.x,16,world.w-16); e.y=clamp(e.y,16,world.h-16);
+    }
+
+    // Enemy bullets move
+    for(const b of ebullets){ b.x+=Math.cos(b.a)*b.sp*dt; b.y+=Math.sin(b.a)*b.sp*dt; b.life-=dt; }
+    // prune bullets
+    for(let i=ebullets.length-1;i>=0;i--) if(ebullets[i].life<=0) ebullets.splice(i,1);
+
+    // Collisions: item vs enemy
+    for(const e of enemies){
+      for(const it of player.items){
+        const rr = (it.shape==='bar'? it.size*0.6: it.size*0.5);
+        if(dist(e.x,e.y,it.x,it.y) < e.r + rr){
+          const damage = it.dmg*dt*3; // sustained contact
+          e.hp -= damage; it.dur -= damage*0.5; // item also damages
+          if(it.dur<0) it.dur=0;
+          cam.shake = Math.min(8, cam.shake+0.6);
+        }
+      }
+    }
+
+    // Collisions: enemy body vs player
+    for(const e of enemies){ if(dist(e.x,e.y,player.x,player.y) < e.r + player.r){ if(player.inv<=0){ player.life -= 12; player.inv=0.8; cam.shake=8; }
+        // slight push
+        const a=Math.atan2(player.y-e.y, player.x-e.x); player.x+=Math.cos(a)*18; player.y+=Math.sin(a)*18;
+      } }
+
+    // Enemy bullets vs player
+    for(const b of ebullets){ if(dist(b.x,b.y,player.x,player.y)<player.r+4){ if(player.inv<=0){ player.life -= 8; player.inv=0.8; cam.shake=6; } b.life=0; } }
+
+    // Item pickup auto (small magnet)
+    for(const it of items){ if(it.attached) continue; if(dist(it.x,it.y,player.x,player.y)<28){ it.attached=true; player.items.push(it); }
+      else if(dist(it.x,it.y,player.x,player.y)<90){ const a=Math.atan2(player.y-it.y, player.x-it.x); it.x+=Math.cos(a)*60*dt; it.y+=Math.sin(a)*60*dt; }
+    }
+
+    // Enemy death, drops
+    for(let i=enemies.length-1;i>=0;i--){ const e=enemies[i]; if(e.hp<=0){ enemies.splice(i,1); killCount++; cam.shake=10;
+        // drop item sometimes
+        if(Math.random()<0.4) items.push(makeItem(e.x+rand(-10,10), e.y+rand(-10,10)));
+      } }
+
+    // Item break (durability -> size shrink -> vanish)
+    for(let i=player.items.length-1;i>=0;i--){ const it=player.items[i]; if(it.dur<=0){ player.items.splice(i,1); }
+    }
+
+    // Spawn pacing
+    if(!midSpawned && killCount>=12){ enemies.push(enemy('mid', world.w/2, 140)); midSpawned=true; }
+    if(midSpawned && !bossSpawned){ const midAlive = enemies.some(e=>e.type==='mid'); if(!midAlive){ bossSpawned=true; enemies.push(enemy('boss', world.w/2, world.h/2-240)); document.getElementById('bossbar').style.display='block'; } }
+
+    // Life check
+    if(player.life<=0){ state=STATE.OVER; showPanel('ゲームオーバー','もう一度挑戦しよう', 'リトライ'); }
+    // Clear check
+    if(bossSpawned){ const bossAlive=enemies.some(e=>e.type==='boss'); if(!bossAlive){ state=STATE.CLEAR; showPanel('ステージクリア！',`撃破数 ${killCount}`, 'もう一度'); document.getElementById('bossbar').style.display='none'; } }
+  }
+
+  function shootAt(x,y,a, sp){ ebullets.push({x,y,a,sp,life:3}); }
+  function radialBurst(x,y,n, sp){ for(let i=0;i<n;i++){ const a=i/n*Math.PI*2; ebullets.push({x,y,a,sp,life:3}); } }
+  function spiral(x,y,n, sp){ const base=t*3; for(let i=0;i<n;i++){ const a=base + i*0.45; ebullets.push({x,y,a,sp,life:3.2}); } }
+
+  function showPanel(title, sub, btn){
+    const ov=document.getElementById('overlay'); const p=document.getElementById('panel'); ov.style.display='grid';
+    p.innerHTML=`<h2>${title}</h2><div class="big">${sub}</div><p>落ちているアイテムを拾って本体にくっつけ、当てて敵を倒そう。<br>アイテムは耐久値が削れると小さくなり、ゼロで壊れる。</p><button id="startBtn">${btn}</button>`;
+    document.getElementById('startBtn').addEventListener('click',()=>{ startGame(); });
+  }
+
+  // ===== Draw =====
+  function draw(){
+    // camera follows
+    cam.x += ((player.x - cv.clientWidth/2) - cam.x)*0.08;
+    cam.y += ((player.y - cv.clientHeight/2) - cam.y)*0.08;
+
+    const sh = cam.shake; cam.shake = Math.max(0, cam.shake - 0.9);
+    const sx = (Math.random()*2-1)*sh; const sy=(Math.random()*2-1)*sh;
+    ctx.save(); ctx.translate(-cam.x+sx, -cam.y+sy);
+
+    // backdrop grid
+    drawGrid();
+
+    // items (ground)
+    for(const it of items){ if(it.attached) continue; drawItem(it); }
+
+    // enemy bullets
+    for(const b of ebullets){ ctx.fillStyle='#eab308'; ctx.beginPath(); ctx.arc(b.x,b.y,4,0,Math.PI*2); ctx.fill(); }
+
+    // enemies
+    for(const e of enemies){ ctx.save(); ctx.translate(e.x,e.y); drawEnemy(e); ctx.restore(); }
+
+    // player
+    drawPlayer();
+
+    ctx.restore();
+
+    // UI
+    const lb=document.querySelector('#lifebar .fill'); lb.style.width=clamp(player.life,0,player.maxLife)/player.maxLife*100+"%";
+    document.querySelector('#lifebar .txt').textContent=`LIFE ${Math.max(0,Math.ceil(player.life))}/${player.maxLife}`;
+
+    const boss=enemies.find(e=>e.type==='boss');
+    const bb=document.getElementById('bossbar');
+    if(boss){ bb.style.display='block'; const f=bb.querySelector('.fill'); f.style.width=(boss.hp/boss.maxHp*100)+"%"; bb.querySelector('.txt').textContent=`BOSS ${Math.max(0,Math.ceil(boss.hp))}/${boss.maxHp}`; }
+    else { if(state!==STATE.PLAY){} else { bb.style.display = bossSpawned? 'block':'none'; } }
+  }
+
+  function drawGrid(){
+    const step=64; const x0=Math.floor((cam.x-400)/step)*step; const y0=Math.floor((cam.y-300)/step)*step;
+    ctx.strokeStyle='rgba(96,165,250,0.08)'; ctx.lineWidth=1; ctx.beginPath();
+    for(let x=x0; x<cam.x+cv.clientWidth+400; x+=step){ ctx.moveTo(x, cam.y-300); ctx.lineTo(x, cam.y+cv.clientHeight+300); }
+    for(let y=y0; y<cam.y+cv.clientHeight+300; y+=step){ ctx.moveTo(cam.x-400, y); ctx.lineTo(cam.x+cv.clientWidth+400, y); }
+    ctx.stroke();
+  }
+
+  function drawPlayer(){
+    const p=player; // body
+    ctx.save(); ctx.translate(p.x,p.y);
+    // body
+    ctx.fillStyle= p.inv>0? 'rgba(96,165,250,0.9)':'#cbd5e1';
+    ctx.beginPath(); ctx.arc(0,0,p.r,0,Math.PI*2); ctx.fill();
+    // facing
+    ctx.strokeStyle='#60a5fa'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(0,0,p.r+2,p.dir-0.3,p.dir+0.3); ctx.stroke();
+    // attached items
+    for(const it of p.items){ drawItem(it); // ring from center to item
+      ctx.strokeStyle='rgba(148,163,184,0.35)'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(it.x-p.x, it.y-p.y); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawItem(it){
+    const scale = clamp(it.dur/it.maxDur, 0, 1);
+    const s = it.size* (0.6 + 0.4*scale); // shrinks as durability drops
+    ctx.save(); ctx.translate(it.x,it.y); ctx.rotate(it.angle);
+    if(it.attached) ctx.shadowColor='#60a5fa55', ctx.shadowBlur=10;
+    if(it.shape==='circle'){
+      ctx.fillStyle = it.attached? '#86efac' : '#34d399'; ctx.beginPath(); ctx.arc(0,0,s*0.5,0,Math.PI*2); ctx.fill();
+    } else if(it.shape==='square'){
+      ctx.fillStyle = it.attached? '#93c5fd' : '#60a5fa'; ctx.fillRect(-s*0.5,-s*0.5,s,s);
+    } else { // bar
+      ctx.fillStyle = it.attached? '#fca5a5' : '#f87171'; ctx.fillRect(-s*0.6,-s*0.18,s*1.2,s*0.36);
+    }
+    // durability ring
+    if(it.attached){ ctx.strokeStyle='rgba(203,213,225,0.7)'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(0,0, Math.max(14, s*0.6), -Math.PI/2, -Math.PI/2 + Math.PI*2*scale); ctx.stroke(); }
+    ctx.restore();
+  }
+
+  function drawEnemy(e){
+    if(e.type==='z1'){ ctx.fillStyle='#f59e0b'; drawBlob(e.r); }
+    if(e.type==='z2'){ ctx.fillStyle='#a78bfa'; drawBlob(e.r); }
+    if(e.type==='z3'){ ctx.fillStyle='#38bdf8'; drawBlob(e.r); }
+    if(e.type==='mid'){ ctx.fillStyle='#ef4444'; drawBlob(e.r); ctx.strokeStyle='#fecaca'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(0,0,e.r+4,0,Math.PI*2); ctx.stroke(); }
+    if(e.type==='boss'){
+      ctx.fillStyle='#ef4444'; drawBlob(e.r);
+      ctx.strokeStyle='#fca5a5'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(0,0,e.r+6,0,Math.PI*2); ctx.stroke();
+      // face
+      ctx.fillStyle='#111827'; ctx.beginPath(); ctx.arc(-8,-4,5,0,Math.PI*2); ctx.arc(8,-4,5,0,Math.PI*2); ctx.fill();
+    }
+    // small hp arc
+    const hp=e.hp/e.maxHp; ctx.strokeStyle='rgba(255,255,255,0.8)'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(0,0,e.r+8,-Math.PI/2,-Math.PI/2+Math.PI*2*hp); ctx.stroke();
+  }
+  function drawBlob(r){ ctx.beginPath(); for(let i=0;i<12;i++){ const a=i/12*Math.PI*2; const rr=r+Math.sin((t*2+i)*0.8)*1.4; const x=Math.cos(a)*rr, y=Math.sin(a)*rr; if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);} ctx.closePath(); ctx.fill(); }
+
+  // ===== Accessibility: prevent scroll bounce on Android =====
+  document.addEventListener('touchmove', e=>{ if(e.target.closest('canvas, #joy')) e.preventDefault(); }, {passive:false});
+
+  // ===== Initial Title Panel visible =====
+  </script></body>
+</html>
