@@ -1,97 +1,296 @@
-<!DOCTYPE html><html lang="ja">
+<!DOCTYPE html>
+<html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no" />
-<title>Attach Attack Arena v1.3</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>見下ろし型アクションゲーム</title>
 <style>
-  body,html{margin:0;padding:0;height:100%;background:#0b0f14;color:#fff;font-family:sans-serif;overflow:hidden}
-  #game{display:none;width:100%;height:100%;}
-  canvas{background:#111;display:block;margin:0 auto;touch-action:none}
-  #title{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;}
-  h1{font-size:2em;margin:0.5em;color:#60a5fa}
-  .sliderBox{margin:10px}
-  label{display:block;margin-bottom:4px}
-  input[type=range]{width:200px}
-  button{margin-top:20px;padding:10px 20px;font-size:16px;border:none;border-radius:8px;background:#2563eb;color:#fff}
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#111;color:#fff;font-family:sans-serif}
+  canvas{display:block;touch-action:none}
+  #ui{
+    position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;
+  }
+  #title{
+    position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    text-align:center;pointer-events:auto;
+  }
+  button,select,input[type=checkbox]{
+    margin:4px;padding:8px;font-size:18px;
+  }
+  #hud{position:absolute;top:10px;left:10px;pointer-events:none;font-size:18px;}
+  #joystick{
+    position:absolute;bottom:20px;right:20px;width:120px;height:120px;
+    border-radius:50%;background:rgba(255,255,255,0.1);pointer-events:auto;
+    touch-action:none;
+  }
+  #stick{
+    position:absolute;width:50px;height:50px;border-radius:50%;
+    background:rgba(255,255,255,0.4);left:35px;top:35px;
+  }
 </style>
 </head>
 <body>
-<div id="title">
-  <h1>Attach Attack Arena</h1>
-  <p>全方向から現れる敵を倒そう！<br>アイテムを最大3つまで装着できます。<br>アイテムは攻撃力と耐久値が異なります。</p>
-  <div class="sliderBox">
-    <label>敵出現間隔 <span id="enemyIntervalLbl"></span></label>
-    <input id="enemyInterval" type="range" min="500" max="3000" step="100" value="1500">
+<canvas id="game"></canvas>
+<div id="ui">
+  <div id="title">
+    <h1>見下ろし型アクション</h1>
+    <p>仮想スティックで移動。アイテムをくっつけて敵にぶつけて攻撃！</p>
+    <div>
+      難易度:
+      <select id="difficulty">
+        <option value="easy">EASY</option>
+        <option value="normal" selected>NORMAL</option>
+        <option value="hard">HARD</option>
+      </select>
+    </div>
+    <div>
+      <label><input type="checkbox" id="shakeToggle" checked>画面シェイクON</label>
+      <label><input type="checkbox" id="soundToggle" checked>サウンドON</label>
+    </div>
+    <button id="startBtn">ゲーム開始</button>
+    <p id="hiscore"></p>
   </div>
-  <div class="sliderBox">
-    <label>アイテム出現間隔 <span id="itemIntervalLbl"></span></label>
-    <input id="itemInterval" type="range" min="1000" max="5000" step="100" value="2000">
+  <div id="hud" style="display:none;">
+    <div id="life">LIFE: 100</div>
+    <div id="wave">WAVE: 1</div>
+    <div id="score">SCORE: 0</div>
   </div>
-  <div class="sliderBox">
-    <label>プレイヤー速度 <span id="playerSpeedLbl"></span></label>
-    <input id="playerSpeed" type="range" min="2" max="8" step="0.5" value="4">
-  </div>
-  <button id="startBtn" type="button" tabindex="0" onclick="window.__startGame && window.__startGame()" style="appearance:none;background:#60a5fa;color:#081018;border:0;padding:10px 16px;border-radius:999px;font-weight:700;width:100%;">ゲーム開始</button>
+  <div id="joystick" style="display:none;"><div id="stick"></div></div>
 </div>
-<div id="game">
-  <canvas id="cv"></canvas>
-  <div id="ui" style="position:absolute;top:0;left:0;width:100%;color:#fff;padding:5px;font-size:14px">
-    <div id="life"></div>
-  </div>
-  <div id="stick" style="position:absolute;right:20px;bottom:20px;width:120px;height:120px;background:rgba(255,255,255,0.1);border-radius:50%"></div>
-</div>
+
 <script>
-// === Utility ===
-const rand=(a,b)=>Math.random()*(b-a)+a; const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)); const dist=(x1,y1,x2,y2)=>Math.hypot(x2-x1,y2-y1);// === Canvas / Arena (非スクロール) === const cv=document.getElementById('cv'); const ctx=cv.getContext('2d'); const ARENA={ w:cv.clientWidth, h:cv.clientHeight }; function resize(){ const dpr=window.devicePixelRatio||1; cv.width=Math.round(cv.clientWidthdpr); cv.height=Math.round(cv.clientHeightdpr); ctx.setTransform(dpr,0,0,dpr,0,0); ARENA.w=cv.clientWidth; ARENA.h=cv.clientHeight; centerPlayer(); } new ResizeObserver(resize).observe(cv); resize();
+const canvas=document.getElementById("game");
+const ctx=canvas.getContext("2d");
+let W,H,DPR;
+function resize(){
+  DPR=window.devicePixelRatio||1;
+  W=window.innerWidth;H=window.innerHeight;
+  canvas.width=W*DPR;canvas.height=H*DPR;
+  canvas.style.width=W+"px";canvas.style.height=H+"px";
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+window.addEventListener("resize",resize);
+resize();
 
-// === Input: 右スティック === const joy=document.getElementById('stick'); // ベース要素をそのままジョイスティック領域として使う const stick=joy; // ノブも同要素（見た目のみ移動） let joyDX=0, joyDY=0, joyAct=false; function joyHandle(e){ if(!joy) return; const r=joy.getBoundingClientRect(); const p=e.touches?e.touches[0]:e; const x=p.clientX-r.left-r.width/2; const y=p.clientY-r.top-r.height/2; const rad=r.width/2-8; const len=Math.hypot(x,y); const s=len>rad?rad/len:1; joyDX=(xs)/rad; joyDY=(ys)/rad; stick.style.transform=translate(${joyDX*rad}px,${joyDY*rad}px); } if(joy){ joy.addEventListener('pointerdown',e=>{ joyAct=true; joy.setPointerCapture(e.pointerId); joyHandle(e); }); joy.addEventListener('pointermove',e=>{ if(joyAct) joyHandle(e); }); joy.addEventListener('pointerup',e=>{ joyAct=false; joyDX=joyDY=0; stick.style.transform='translate(0,0)'; }); }
+// 状態管理
+let state="title";
+let player,items,enemies,wave,score,life,startTime;
+let keys={},joystick={active:false,dx:0,dy:0};
+let maxItemsOnScreen=3;
+let maxAttach=3;
+let difficulty="normal";
+let shakeEnabled=true,soundEnabled=true;
+let hiscore=localStorage.getItem("hiscore")||0;
 
-// === Overlay: 足りなければ動的生成 === (function ensureOverlay(){ // タイトル画面を使う前提。ここでのオーバーレイ生成はスキップ const title = document.getElementById('title'); if(title) return; })();
+// サウンド生成
+function beep(freq,dur){
+  if(!soundEnabled)return;
+  try{
+    const ctxA=new (window.AudioContext||window.webkitAudioContext)();
+    const osc=ctxA.createOscillator();const gain=ctxA.createGain();
+    osc.type="square";osc.frequency.value=freq;
+    gain.gain.value=0.1;osc.connect(gain);gain.connect(ctxA.destination);
+    osc.start();osc.stop(ctxA.currentTime+dur/1000);
+  }catch(e){}
+}
 
-// スライダー紐付け const EL={ startBtn:document.getElementById('startBtn'), overlay:document.getElementById('overlay'), opt_psp:document.getElementById('opt_psp'), opt_eint:document.getElementById('opt_eint'), opt_iint:document.getElementById('opt_iint'), lbl_psp:document.getElementById('lbl_psp'), lbl_eint:document.getElementById('lbl_eint'), lbl_iint:document.getElementById('lbl_iint') }; function bindSlider(inp,lbl){ if(!inp||!lbl) return; const upd=()=>{ lbl.textContent=inp.value; }; inp.addEventListener('input',upd); upd(); } bindSlider(EL.opt_psp, EL.lbl_psp); bindSlider(EL.opt_eint, EL.lbl_eint); bindSlider(EL.opt_iint, EL.lbl_iint);
+// エンティティ
+class Player{
+  constructor(){this.x=W/2;this.y=H/2;this.r=20;this.life=100;this.attached=[];}
+  move(dx,dy){this.x+=dx;this.y+=dy;this.x=Math.max(this.r,Math.min(W-this.r,this.x));this.y=Math.max(this.r,Math.min(H-this.r,this.y));}
+  draw(){
+    ctx.fillStyle="cyan";
+    ctx.beginPath();ctx.arc(this.x,this.y,this.r,0,Math.PI*2);ctx.fill();
+    // 接着アイテム描画
+    this.attached.forEach((it,i)=>{
+      it.x=this.x+Math.cos(i*2*Math.PI/this.attached.length)*40;
+      it.y=this.y+Math.sin(i*2*Math.PI/this.attached.length)*40;
+      it.draw();
+    });
+  }
+}
+class Item{
+  constructor(type,from){
+    this.type=type;
+    this.hp=(type==="circle"?5:(type==="triangle"?3:2));
+    this.attack=(type==="circle"?1:(type==="triangle"?3:2));
+    this.knock=(type==="circle"?36:(type==="triangle"?0:12));
+    this.r=18;this.attached=false;
+    let ang=Math.random()*Math.PI*2;
+    let dist=Math.max(W,H)/2+30;
+    this.x=W/2+Math.cos(ang)*dist;
+    this.y=H/2+Math.sin(ang)*dist;
+    this.vx=(W/2-this.x)/200;this.vy=(H/2-this.y)/200;
+  }
+  update(){
+    if(!this.attached){this.x+=this.vx;this.y+=this.vy;}
+  }
+  draw(){
+    ctx.save();
+    if(this.type==="circle"){ctx.fillStyle="lime";}
+    if(this.type==="triangle"){ctx.fillStyle="orange";}
+    if(this.type==="rect"){ctx.fillStyle="violet";}
+    ctx.strokeStyle="black";ctx.lineWidth=2;
+    ctx.beginPath();
+    if(this.type==="circle"){ctx.arc(this.x,this.y,this.r,0,Math.PI*2);}
+    if(this.type==="triangle"){
+      ctx.moveTo(this.x,this.y-this.r);
+      ctx.lineTo(this.x+this.r,this.y+this.r);
+      ctx.lineTo(this.x-this.r,this.y+this.r);ctx.closePath();
+    }
+    if(this.type==="rect"){ctx.rect(this.x-this.r*1.2,this.y-this.r*0.5,this.r*2.4,this.r*0.9);}
+    ctx.fill();ctx.stroke();
+    ctx.restore();
+  }
+}
+class Enemy{
+  constructor(type){
+    this.type=type;
+    this.r=18;
+    this.hp=(type==="boss"?30:(type==="mid"?12:5));
+    let ang=Math.random()*Math.PI*2;
+    let dist=Math.max(W,H)/2+40;
+    this.x=W/2+Math.cos(ang)*dist;
+    this.y=H/2+Math.sin(ang)*dist;
+    this.vx=(W/2-this.x)/200;this.vy=(H/2-this.y)/200;
+  }
+  update(){this.x+=this.vx;this.y+=this.vy;}
+  draw(){
+    ctx.fillStyle=this.type==="boss"?"red":this.type==="mid"?"purple":"gray";
+    ctx.strokeStyle="white";ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(this.x,this.y,this.r,0,Math.PI*2);ctx.fill();ctx.stroke();
+  }
+}
 
-// === State === const STATE={ TITLE:0, PLAY:1 }; let state=STATE.TITLE;
+// ゲーム開始
+function startGame(){
+  player=new Player();
+  items=[];enemies=[];
+  wave=1;score=0;life=100;
+  startTime=Date.now();
+  state="game";
+  document.getElementById("title").style.display="none";
+  document.getElementById("hud").style.display="block";
+  document.getElementById("joystick").style.display="block";
+}
 
-// === Player === const player={ x:ARENA.w/2, y:ARENA.h/2, r:18, speed:240, life:100, dir:0, inv:0, items:[] }; function centerPlayer(){ player.x=ARENA.w/2; player.y=ARENA.h/2; }
+// メインループ
+let shakeX=0,shakeY=0;
+function loop(){
+  requestAnimationFrame(loop);
+  ctx.clearRect(0,0,W,H);
 
-// === Items（○弱/耐久強, △強/耐久中, 長方形中/耐久弱） === const ITEM_KIND={ circle:{atk:14, dur:140}, triangle:{atk:26, dur:90}, rect:{atk:19, dur:70} }; const SHAPES=['circle','triangle','rect']; function makeItem(shape,x,y){ const size=rand(44,76); const stat=ITEM_KIND[shape]; return {shape,size,x,y,vx:0,vy:0,angle:0,attached:false,parent:null,off:rand(30,54),atk:stat.atk, maxDur:stat.dur, dur:stat.dur, flying:true, life:8}; } const items=[]; // 全アイテム function attachTo(target,it){ if(player.items.length>=3) return false; it.attached=true; it.flying=false; it.parent=target; it.angle=player.dir; it.off=Math.max(26,it.size*0.6); if(!player.items.includes(it)) player.items.push(it); return true; }
+  if(state==="title"){
+    ctx.fillStyle="#333";ctx.fillRect(0,0,W,H);
+    document.getElementById("hiscore").textContent="ハイスコア:"+hiscore;
+    return;
+  }
+  if(state==="game"){
+    // 入力
+    let dx=0,dy=0;
+    if(keys["ArrowUp"])dy-=3;if(keys["ArrowDown"])dy+=3;
+    if(keys["ArrowLeft"])dx-=3;if(keys["ArrowRight"])dx+=3;
+    if(joystick.active){dx+=joystick.dx*3;dy+=joystick.dy*3;}
+    player.move(dx,dy);
 
-// === Enemies（全方向から順次出現） === function makeEnemy(x,y){ return {x,y,r:18,hp:70, vx:0,vy:0}; } const enemies=[]; let enemyTimer=0, enemyInterval=1.4; // UIから設定 function spawnEnemyFromEdge(){ const side=Math.floor(rand(0,4)); let x=0,y=0; if(side===0){x=rand(0,ARENA.w);y=-20;} if(side===1){x=ARENA.w+20;y=rand(0,ARENA.h);} if(side===2){x=rand(0,ARENA.w);y=ARENA.h+20;} if(side===3){x=-20;y=rand(0,ARENA.h);} enemies.push(makeEnemy(x,y)); }
+    // 更新
+    items.forEach(it=>it.update());
+    enemies.forEach(en=>en.update());
 
-// === Item spawn（全方向から飛来。開始時に1つ即時） === let itemTimer=0, itemInterval=4.5; function spawnItemFromEdge(immediate=false){ const shape=SHAPES[Math.floor(rand(0,SHAPES.length))]; const side=Math.floor(rand(0,4)); let x=0,y=0; if(side===0){x=rand(0,ARENA.w);y=-24;} if(side===1){x=ARENA.w+24;y=rand(0,ARENA.h);} if(side===2){x=rand(0,ARENA.w);y=ARENA.h+24;} if(side===3){x=-24;y=rand(0,ARENA.h);} const it=makeItem(shape,x,y); const a=Math.atan2(player.y-y, player.x-x); const sp=220; it.vx=Math.cos(a)*sp; it.vy=Math.sin(a)*sp; it.angle=a; items.push(it); if(immediate){ it.life=10; } }
+    // 衝突判定
+    enemies.forEach(en=>{
+      // player本体衝突
+      let d=Math.hypot(en.x-player.x,en.y-player.y);
+      if(d<en.r+player.r){player.life-=1;beep(200,100);}
+      // アイテム衝突
+      player.attached.forEach(it=>{
+        let d2=Math.hypot(en.x-it.x,en.y-it.y);
+        if(d2<en.r+it.r){
+          en.hp-=it.attack;
+          if(it.knock>0){
+            en.x+=Math.sign(en.x-player.x)*it.knock;
+            en.y+=Math.sign(en.y-player.y)*it.knock;
+            if(shakeEnabled&&it.type==="circle"){shakeX=(Math.random()-0.5)*10;shakeY=(Math.random()-0.5)*10;}
+          }
+          it.hp--;if(it.hp<=0){player.attached=player.attached.filter(x=>x!==it);}
+          beep(440,80);
+        }
+      });
+    });
+    enemies=enemies.filter(en=>{if(en.hp<=0){score+=10;beep(880,100);return false;}return true;});
 
-// === Start === // === タイトルのスライダー（表示値更新） === (function bindTitleSliders(){ const eI=document.getElementById('enemyInterval'); const eL=document.getElementById('enemyIntervalLbl'); const iI=document.getElementById('itemInterval'); const iL=document.getElementById('itemIntervalLbl'); const pS=document.getElementById('playerSpeed'); const pL=document.getElementById('playerSpeedLbl'); function up(inp,lbl,fmt=(v)=>v){ if(!inp||!lbl) return; const f=()=>lbl.textContent=fmt(inp.value); inp.addEventListener('input',f); f(); } up(eI,eL,(v)=>${v} ms); up(iI,iL,(v)=>${v} ms); up(pS,pL,(v)=>${v}); })();
+    // アイテム吸着
+    items.forEach(it=>{
+      let d=Math.hypot(it.x-player.x,it.y-player.y);
+      if(d<40&&!it.attached&&player.attached.length<maxAttach){
+        it.attached=true;player.attached.push(it);beep(660,100);
+      }else if(d<120&&!it.attached){ // マグネット
+        it.x+=(player.x-it.x)*0.02;
+        it.y+=(player.y-it.y)*0.02;
+      }
+    });
+    items=items.filter(it=>!it.attached);
 
-// === Start（確実に起動） === function onStart(){ try{ const title=document.getElementById('title'); const game=document.getElementById('game'); const eI=document.getElementById('enemyInterval'); const iI=document.getElementById('itemInterval'); const pS=document.getElementById('playerSpeed'); // タイトルから設定反映（ms→秒に変換） enemyInterval = (eI? Number(eI.value):1500) / 1000; itemInterval  = (iI? Number(iI.value):2000) / 1000; player.speed  = (pS? Number(pS.value):4) * 60; // スライダー4=240相当
+    // スポーン
+    if(Math.random()<0.01 && items.length+player.attached.length<maxItemsOnScreen){
+      let t=["circle","triangle","rect"][Math.floor(Math.random()*3)];
+      items.push(new Item(t));
+    }
+    if(Math.random()<0.02)enemies.push(new Enemy("small"));
 
-// 画面切替
-if(title) title.style.display='none';
-if(game)  game.style.display='block';
+    // 描画
+    ctx.save();ctx.translate(shakeX,shakeY);
+    player.draw();
+    items.forEach(it=>it.draw());
+    enemies.forEach(en=>en.draw());
+    ctx.restore();
+    shakeX=shakeY=0;
 
-reset();
-resize(); // 表示切替後のキャンバスサイズ確定
+    // HUD
+    document.getElementById("life").textContent="LIFE:"+player.life;
+    document.getElementById("wave").textContent="WAVE:"+wave;
+    document.getElementById("score").textContent="SCORE:"+score;
+    if(player.life<=0){state="gameover";}
+  }
+  if(state==="gameover"){
+    ctx.fillStyle="black";ctx.fillRect(0,0,W,H);
+    ctx.fillStyle="white";ctx.font="40px sans-serif";
+    ctx.fillText("GAME OVER",W/2-100,H/2);
+    if(score>hiscore){hiscore=score;localStorage.setItem("hiscore",hiscore);}
+  }
+}
+loop();
 
-state=STATE.PLAY;
-// 開始直後に1つ飛来
-spawnItemFromEdge(true);
+// 入力イベント
+document.addEventListener("keydown",e=>{keys[e.key]=true;});
+document.addEventListener("keyup",e=>{keys[e.key]=false;});
 
-}catch(e){ console.error(e); } } window.__startGame=onStart;
+// ジョイスティック
+const joy=document.getElementById("joystick");
+const stick=document.getElementById("stick");
+let joyRect;
+function updateJoy(e){
+  let t=e.touches[0];
+  let x=t.clientX-joyRect.left;
+  let y=t.clientY-joyRect.top;
+  let dx=x-60,dy=y-60;
+  let len=Math.hypot(dx,dy);
+  if(len>40){dx=dx/len*40;dy=dy/len*40;}
+  stick.style.left=(60+dx-25)+"px";
+  stick.style.top=(60+dy-25)+"px";
+  joystick.dx=dx/40;joystick.dy=dy/40;
+}
+joy.addEventListener("touchstart",e=>{joyRect=joy.getBoundingClientRect();joystick.active=true;updateJoy(e);});
+joy.addEventListener("touchmove",e=>{updateJoy(e);});
+joy.addEventListener("touchend",e=>{joystick.active=false;stick.style.left="35px";stick.style.top="35px";});
 
-// --- Pixel 9 XL / Opera 対策：複数経路で起動を保証 --- function strongBindStart(){ const btn=document.getElementById('startBtn'); if(!btn) return; btn.onclick = (ev)=>{ ev&&ev.preventDefault(); onStart(); }; ['click','touchstart','touchend','pointerup'].forEach(evt=>{ btn.addEventListener(evt,(ev)=>{ try{ ev.preventDefault(); onStart(); }catch(e){ console.error(e); } }, {passive:false}); }); ['click','touchstart'].forEach(evt=>{ document.addEventListener(evt,(ev)=>{ const t=ev.target; if(t && (t.id==='startBtn' || (t.closest && t.closest('#startBtn')))){ ev.preventDefault(); onStart(); } }, true); }); } strongBindStart(); new MutationObserver(strongBindStart).observe(document.body,{childList:true,subtree:true});
-
-document.addEventListener('keydown',(e)=>{ if(e.key==='Enter' && (document.getElementById('title')?.style.display!=='none')) onStart(); }); (function bindStart(){ const btn=document.getElementById('startBtn'); if(!btn) return; ['click','touchend','pointerup'].forEach(evt=>btn.addEventListener(evt,(ev)=>{ ev.preventDefault(); onStart(); },{passive:false})); })();
-
-document.addEventListener('keydown',(e)=>{ if(e.key==='Enter' && document.getElementById('title')?.style.display!=='none') onStart(); });
-
-function reset(){ player.items.length=0; player.life=100; centerPlayer(); enemies.length=0; items.length=0; enemyTimer=0.2; itemTimer=1.0; }
-
-// === Update === let t0=performance.now(); function update(dt){ if(state!==STATE.PLAY) return; // タイトル中は停止 // 移動 let ax=joyDX, ay=joyDY; const len=Math.hypot(ax,ay)||1; ax/=len; ay/=len; player.x+=axplayer.speeddt; player.y+=ayplayer.speeddt; player.x=clamp(player.x,player.r,ARENA.w-player.r); player.y=clamp(player.y,player.r,ARENA.h-player.r); if(ax||ay) player.dir=Math.atan2(ay,ax); // 敵出現 enemyTimer-=dt; if(enemyTimer<=0){ spawnEnemyFromEdge(); enemyTimer=enemyInterval; } // 敵AI for(const e of enemies){ const a=Math.atan2(player.y-e.y, player.x-e.x); const sp=100; e.vx=Math.cos(a)sp; e.vy=Math.sin(a)sp; e.x+=e.vxdt; e.y+=e.vydt; } // アイテム飛来 itemTimer-=dt; if(itemTimer<=0){ spawnItemFromEdge(); itemTimer=itemInterval; } for(const it of items){ if(it.flying){ it.x+=it.vxdt; it.y+=it.vydt; it.life-=dt; if(it.life<=0){ it.flying=false; } } if(!it.attached){ if(dist(it.x,it.y,player.x,player.y) < player.r + it.size0.45){ attachTo(player,it); } else { for(const at of player.items){ if(dist(it.x,it.y,at.x,at.y) < (at.size0.5 + it.size*0.45)){ attachTo(at,it); break; } } } } } // 装着アイテムの位置 for(let i=0;i<player.items.length;i++){ const it=player.items[i]; const par=it.parent||player; const base=(par===player? player.dir:par.angle); const spread=(player.items.length>1? (i-(player.items.length-1)/2)0.5:0); it.angle+=(base+spread - it.angle)0.25; it.x=par.x+Math.cos(it.angle)it.off; it.y=par.y+Math.sin(it.angle)it.off; } // 当たり判定 for(const e of enemies){ for(const it of player.items){ const rr=it.size0.45; if(dist(e.x,e.y,it.x,it.y) < e.r + rr){ const dmg=it.atkdt2.2; e.hp-=dmg; it.dur-=dmg0.9; if(it.dur<0) it.dur=0; } } } for(const e of enemies){ if(dist(e.x,e.y,player.x,player.y) < e.r + player.r){ if(player.inv<=0){ player.life-=12; player.inv=0.8; } const a=Math.atan2(player.y-e.y, player.x-e.x); player.x+=Math.cos(a)*14; player.y+=Math.sin(a)*14; } } if(player.inv>0) player.inv-=dt; for(let i=player.items.length-1;i>=0;i--){ if(player.items[i].dur<=0){ player.items.splice(i,1); } } for(let i=enemies.length-1;i>=0;i--){ if(enemies[i].hp<=0){ enemies.splice(i,1); } } }
-
-// === Draw === function draw(){ ctx.clearRect(0,0,cv.width,cv.height); // 背景グリッド const W=ARENA.w,H=ARENA.h; ctx.strokeStyle='rgba(96,165,250,0.08)'; ctx.lineWidth=1; ctx.beginPath(); for(let x=0;x<W;x+=64){ ctx.moveTo(x,0); ctx.lineTo(x,H);} for(let y=0;y<H;y+=64){ ctx.moveTo(0,y); ctx.lineTo(W,y);} ctx.stroke(); // アイテム（未装着） for(const it of items){ if(!it.attached) drawItem(it); } // プレイヤー ctx.fillStyle = player.inv>0? 'rgba(96,165,250,0.9)':'#cbd5e1'; ctx.beginPath(); ctx.arc(player.x,player.y,player.r,0,Math.PI2); ctx.fill(); // 装着アイテム for(const it of player.items){ drawItem(it,true); ctx.strokeStyle='rgba(148,163,184,0.35)'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(player.x,player.y); ctx.lineTo(it.x,it.y); ctx.stroke(); } // 敵 ctx.fillStyle='#f87171'; for(const e of enemies){ ctx.beginPath(); ctx.arc(e.x,e.y,e.r,0,Math.PI2); ctx.fill(); } } function drawItem(it,attached=false){ const scale = attached? (0.6 + 0.4clamp(it.dur/it.maxDur,0,1)) : 1.0; const s=it.sizescale; ctx.save(); ctx.translate(it.x,it.y); ctx.rotate(it.angle); if(attached) ctx.shadowColor='#60a5fa66', ctx.shadowBlur=10; if(it.shape==='circle'){ ctx.fillStyle = attached? '#86efac' : '#34d399'; ctx.beginPath(); ctx.arc(0,0,s0.5,0,Math.PI2); ctx.fill(); } else if(it.shape==='triangle'){ ctx.fillStyle = attached? '#93c5fd' : '#60a5fa'; ctx.beginPath(); ctx.moveTo(-s0.5, s0.4); ctx.lineTo(0,-s0.55); ctx.lineTo(s0.5, s0.4); ctx.closePath(); ctx.fill(); } else { ctx.fillStyle = attached? '#fca5a5' : '#f87171'; ctx.fillRect(-s0.6,-s0.22,s1.2,s0.44); } if(attached){ ctx.strokeStyle='rgba(203,213,225,0.8)'; ctx.lineWidth=2; const k=clamp(it.dur/it.maxDur,0,1); ctx.beginPath(); ctx.arc(0,0, Math.max(16, s0.6), -Math.PI/2, -Math.PI/2 + Math.PI2k ); ctx.stroke(); } ctx.restore(); }
-
-// === Loop === let tPrev=performance.now(); function loop(){ const nt=performance.now(); const dt=(nt-tPrev)/1000; tPrev=nt; update(dt); draw(); requestAnimationFrame(loop); } loop();
-
-// スクロール抑止 addEventListener('touchmove', e=>{ if(e.target.closest('canvas, #joy')) e.preventDefault(); }, {passive:false}); </script>
-
+// ボタン
+document.getElementById("startBtn").onclick=()=>{
+  difficulty=document.getElementById("difficulty").value;
+  shakeEnabled=document.getElementById("shakeToggle").checked;
+  soundEnabled=document.getElementById("soundToggle").checked;
+  startGame();
+};
+</script>
 </body>
 </html>
