@@ -300,6 +300,13 @@
 
   // ===== Draw =====
   function draw(){
+    // --- clear frame (fix: Androidでの残像・塗りつぶしに見える不具合対策) ---
+    // DPRスケール後でも確実に全消去するため、ピクセル座標でクリア
+    ctx.save();
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.clearRect(0,0,cv.width,cv.height);
+    ctx.restore();
+
     // camera follows
     cam.x += ((player.x - cv.clientWidth/2) - cam.x)*0.08;
     cam.y += ((player.y - cv.clientHeight/2) - cam.y)*0.08;
