@@ -1,197 +1,69 @@
 <!DOCTYPE html><html lang="ja">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-<title>Attach-Attack v1.2</title>
-<style>
-  :root{ --bg:#0a0f16; --ink:#e6edf3; --muted:#9aa4b2; --accent:#60a5fa; --panel:#0f172a; }
-  *{ box-sizing:border-box; }
-  html,body{ height:100%; margin:0; background:var(--bg); color:var(--ink); font-family: system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif; }
-  #wrap{ display:grid; grid-template-rows:auto 1fr; height:100%; }
-  header{ padding:8px 12px; background:var(--panel); border-bottom:1px solid #1f2937; display:flex; align-items:center; gap:12px; }
-  header h1{ font-size:16px; margin:0; font-weight:700; }
-  #game{ position:relative; height:100%; }
-  canvas{ width:100%; height:100%; touch-action:none; display:block; background: radial-gradient(1200px 800px at 50% 50%, #0b1220, #070a12 60%, #060910); }
-  #hud{ position:absolute; inset:0; pointer-events:none; }
-  .joy{ position:absolute; right:16px; bottom:16px; width:140px; height:140px; pointer-events:auto; }
-  .joy .base{ position:absolute; inset:0; border-radius:50%; background:#0b1220aa; border:1px solid #273244; }
-  .joy .stick{ position:absolute; left:50%; top:50%; width:72px; height:72px; margin-left:-36px; margin-top:-36px; border-radius:50%; background:#1f2937cc; border:1px solid #334155; }
-  .bar{ position:absolute; left:12px; top:8px; width:min(520px, 60vw); height:14px; background:#111827aa; border:1px solid #273244; border-radius:10px; overflow:hidden; }
-  .bar .fill{ height:100%; background:linear-gradient(90deg, #22c55e, #83e07a); width:100%; }
-  .bar .txt{ position:absolute; inset:0; display:grid; place-items:center; font-size:11px; color:#d1d5db; text-shadow:0 1px 0 #000; }
-  #overlay{ position:absolute; inset:0; display:grid; place-items:center; pointer-events:auto; background:rgba(0,0,0,0.2); }
-  .panel{ background:#0b1220e6; border:1px solid #273244; padding:18px 16px; border-radius:16px; min-width:280px; max-width:min(560px, 92vw); text-align:left; box-shadow:0 10px 40px #0008; }
-  .panel h2{ margin:0 0 4px; font-size:20px; }
-  .panel p{ margin:0 0 10px; color:var(--muted); }
-  .row{ display:grid; grid-template-columns: 1fr auto; gap:10px; align-items:center; }
-  .panel label{ display:grid; gap:6px; font-size:13px; }
-  .panel input[type=range]{ width:100%; }
-  .panel .btn{ appearance:none; background:var(--accent); color:#081018; border:0; padding:10px 16px; border-radius:999px; font-weight:700; width:100%; }
-  .hint{ position:absolute; left:12px; bottom:8px; font-size:12px; color:#9ca3af; background:#0b1220aa; border:1px solid #273244; padding:6px 10px; border-radius:10px; }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <title>Attach-Attack — 見下ろしアクション</title>
+  <style>
+    body{margin:0;background:#0a0f16;color:#e6edf3;font-family:sans-serif;overflow:hidden}
+    #wrap{display:grid;grid-template-rows:auto 1fr;height:100%}
+    header{padding:8px 12px;background:#0f172a;border-bottom:1px solid #1f2937;}
+    canvas{width:100%;height:100%;display:block;touch-action:none;background:#070a12}
+    .joy{position:absolute;right:16px;bottom:16px;width:140px;height:140px;}
+    .joy .base{position:absolute;inset:0;border-radius:50%;background:#0b1220aa;border:1px solid #273244}
+    .joy .stick{position:absolute;left:50%;top:50%;width:72px;height:72px;margin-left:-36px;margin-top:-36px;border-radius:50%;background:#1f2937cc;border:1px solid #334155}
+  </style>
 </head>
 <body>
   <div id="wrap">
-    <header>
-      <h1>Attach-Attack v1.2</h1>
-      <div class="sub" style="color:#9aa4b2; font-size:12px;">見下ろしアクション：拾ったアイテムを本体にくっつけて敵を倒す</div>
-    </header>
-    <div id="game">
-      <canvas id="cv" width="1280" height="720"></canvas>
-      <div id="hud">
-        <div class="bar" id="lifebar"><div class="fill"></div><div class="txt">LIFE</div></div>
-        <div class="hint">右スティックで移動。アイテムは**接触だけで自動でくっつく**／装着アイテム同士も接触で連結。</div>
-      </div>
-      <div class="joy" id="joy">
-        <div class="base"></div>
-        <div class="stick" id="stick"></div>
-      </div><div id="overlay">
-    <div class="panel">
-      <h2>タイトル</h2>
-      <p>目的：ザコ→中ボス→ボスを倒す。アイテム（○・△・長方形）は接触で装着。装着後は実寸大で表示され、当てると敵にダメージ。</p>
-      <div class="row"><label>アイテム数 <span id="lbl_items">30</span>
-        <input id="opt_items" type="range" min="10" max="80" value="30"></label></div>
-      <div class="row"><label>サイズ倍率 <span id="lbl_isize">1.4</span>
-        <input id="opt_isize" type="range" min="0.8" max="2.2" step="0.1" value="1.4"></label></div>
-      <div class="row"><label>敵HP倍率 <span id="lbl_ehp">1.0</span>
-        <input id="opt_ehp" type="range" min="0.5" max="3.0" step="0.1" value="1.0"></label></div>
-      <div class="row"><label>プレイヤー速度 <span id="lbl_psp">240</span>
-        <input id="opt_psp" type="range" min="140" max="400" step="10" value="240"></label></div>
-      <button class="btn" id="startBtn">ゲーム開始</button>
-    </div>
+    <header><h1>Attach-Attack</h1></header>
+    <canvas id="cv" width="1280" height="720"></canvas>
+    <div class="joy" id="joy"><div class="base"></div><div class="stick" id="stick"></div></div>
   </div>
-</div>
+  <script>
+// === Utility ===
+const rand=(a,b)=>Math.random()*(b-a)+a; const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)); const dist=(x1,y1,x2,y2)=>Math.hypot(x2-x1,y2-y1);// === Canvas / Arena (非スクロール) === const cv=document.getElementById('cv'); const ctx=cv.getContext('2d'); const ARENA={ w:cv.clientWidth, h:cv.clientHeight }; function resize(){ const dpr=window.devicePixelRatio||1; cv.width=Math.round(cv.clientWidthdpr); cv.height=Math.round(cv.clientHeightdpr); ctx.setTransform(dpr,0,0,dpr,0,0); ARENA.w=cv.clientWidth; ARENA.h=cv.clientHeight; centerPlayer(); } new ResizeObserver(resize).observe(cv); resize();
 
-  </div><script>
-// ===== Utility =====
-const rand=(a,b)=>Math.random()*(b-a)+a;
-const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-const dist=(x1,y1,x2,y2)=>Math.hypot(x2-x1,y2-y1);
-const now=()=>performance.now();
+// === Input: 右スティック === const joy=document.getElementById('joy'); const stick=document.getElementById('stick'); let joyDX=0, joyDY=0, joyAct=false; function joyHandle(e){ const r=joy.getBoundingClientRect(); const p=e.touches?e.touches[0]:e; const x=p.clientX-r.left-r.width/2; const y=p.clientY-r.top-r.height/2; const rad=r.width/2-8; const len=Math.hypot(x,y); const s=len>rad?rad/len:1; joyDX=(xs)/rad; joyDY=(ys)/rad; stick.style.transform=translate(${joyDX*rad}px,${joyDY*rad}px); } joy.addEventListener('pointerdown',e=>{ joyAct=true; joy.setPointerCapture(e.pointerId); joyHandle(e); }); joy.addEventListener('pointermove',e=>{ if(joyAct) joyHandle(e); }); joy.addEventListener('pointerup',e=>{ joyAct=false; joyDX=joyDY=0; stick.style.transform='translate(0,0)'; });
 
-// ===== Canvas Setup (HiDPI) =====
-const cv=document.getElementById('cv');
-const ctx=cv.getContext('2d');
-function resize(){ const dpr=window.devicePixelRatio||1; cv.width=Math.round(cv.clientWidth*dpr); cv.height=Math.round(cv.clientHeight*dpr); ctx.setTransform(dpr,0,0,dpr,0,0);} new ResizeObserver(resize).observe(cv); resize();
+// === Player === const player={ x:ARENA.w/2, y:ARENA.h/2, r:18, speed:240, life:100, dir:0, inv:0, items:[] }; function centerPlayer(){ player.x=ARENA.w/2; player.y=ARENA.h/2; }
 
-// ===== Input: Virtual Joystick =====
-const joy=document.getElementById('joy'); const stick=document.getElementById('stick');
-let joyAct=false, joyDX=0, joyDY=0;
-function joyHandle(e){ const r=joy.getBoundingClientRect(); const p=(e.touches? e.touches[0]:e); const x=p.clientX-r.left-r.width/2; const y=p.clientY-r.top-r.height/2; const rad=r.width/2-8; const len=Math.hypot(x,y); const s=len>rad? rad/len:1; joyDX=(x*s)/rad; joyDY=(y*s)/rad; stick.style.transform=`translate(${joyDX*rad}px, ${joyDY*rad}px)`; }
-joy.addEventListener('pointerdown',e=>{ joyAct=true; joy.setPointerCapture(e.pointerId); joyHandle(e); });
-joy.addEventListener('pointermove',e=>{ if(joyAct) joyHandle(e); });
-joy.addEventListener('pointerup',e=>{ joyAct=false; joyDX=joyDY=0; stick.style.transform='translate(0,0)'; });
-let key={}; window.addEventListener('keydown',e=>{ key[e.key]=true; }); window.addEventListener('keyup',e=>{ key[e.key]=false; });
+// === Items（○弱/耐久強, △強/耐久中, 長方形中/耐久弱） === const ITEM_KIND={ circle:{atk:14, dur:140}, triangle:{atk:26, dur:90}, rect:{atk:19, dur:70} }; const SHAPES=['circle','triangle','rect']; function makeItem(shape,x,y){ const size=rand(44,76); const stat=ITEM_KIND[shape]; return {shape,size,x,y,vx:0,vy:0,angle:0,attached:false,parent:null,off:rand(30,54),atk:stat.atk, maxDur:stat.dur, dur:stat.dur, flying:true, life:8}; }
 
-// ===== Config from title =====
-const CONFIG={ itemCount:30, itemSizeMul:1.4, enemyHpMul:1.0, playerSpeed:240 };
-for(const [id,lab,fmt] of [
-  ['opt_items','lbl_items',v=>v],['opt_isize','lbl_isize',v=>v],['opt_ehp','lbl_ehp',v=>v],['opt_psp','lbl_psp',v=>v]
-]){ const el=document.getElementById(id), l=document.getElementById(lab); const upd=()=>l.textContent=el.value; el.addEventListener('input',upd); upd(); }
+const items=[]; // ground/flying + attachedも同一リストで持つ（attachedはplayer.itemsにも入る）
 
-// ===== Game State =====
-const STATE={ TITLE:0, PLAY:1, OVER:2, CLEAR:3 };
-let state=STATE.TITLE, t0=now(), dt=0, t=0;
-const world={ w:2200, h:1400 }; const cam={ x:0, y:0, shake:0 };
+function attachTo(target,it){ if(player.items.length>=3) return false; it.attached=true; it.flying=false; it.parent=target; it.angle=player.dir; it.off=Math.max(26,it.size*0.6); if(!player.items.includes(it)) player.items.push(it); return true; }
 
-// ===== Player =====
-const player={ x:world.w/2, y:world.h/2, r:18, speed:CONFIG.playerSpeed, life:100, maxLife:100, dir:0, inv:0, items:[] };
+// === Enemies（全方向から順次出現） === function makeEnemy(x,y){ return {x,y,r:18,hp:70, vx:0,vy:0}; } const enemies=[]; let enemyTimer=0, enemyInterval=1.4; // 順番に出現
 
-// ===== Items (○, △, 長方形) =====
-const SHAPES=['circle','triangle','rect'];
-function makeItem(x,y){ const shape=SHAPES[Math.floor(rand(0,SHAPES.length))]; const size=rand(44,80)*CONFIG.itemSizeMul; const max=rand(60,120); return { id:crypto.randomUUID(), x,y, shape, size, maxDur:max, dur:max, attached:false, parent:null, angle:rand(0,Math.PI*2), off:rand(30,54) }; }
-const items=[];
-function attachToPlayer(it){ it.attached=true; it.parent=null; it.off=Math.max(26, it.size*0.6); it.angle=player.dir; player.items.push(it); }
-function attachToItem(target, it){ it.attached=true; it.parent=target; it.off=(target.size+it.size)/2 + 8; it.angle=target.angle; player.items.push(it); }
+function spawnEnemyFromEdge(){ const side=Math.floor(rand(0,4)); let x=0,y=0; if(side===0){x=rand(0,ARENA.w);y=-20;} if(side===1){x=ARENA.w+20;y=rand(0,ARENA.h);} if(side===2){x=rand(0,ARENA.w);y=ARENA.h+20;} if(side===3){x=-20;y=rand(0,ARENA.h);} enemies.push(makeEnemy(x,y)); }
 
-// ===== Enemies =====
-function enemy(type,x,y){ const e={ type, x, y, r: type==='boss'? 42: type==='mid'? 30: 16, hp:1, maxHp:1, vx:0, vy:0, cd:0 };
-  if(type==='z1'){ e.maxHp=e.hp=60; }
-  if(type==='z2'){ e.maxHp=e.hp=80; }
-  if(type==='z3'){ e.maxHp=e.hp=90; }
-  if(type==='mid'){ e.maxHp=e.hp=500; }
-  if(type==='boss'){ e.maxHp=e.hp=1200; }
-  e.maxHp=Math.round(e.maxHp*CONFIG.enemyHpMul); e.hp=e.maxHp; return e; }
-const enemies=[]; const ebullets=[];
-function spawnWave(n){ for(let i=0;i<n;i++){ const t=['z1','z2','z3'][Math.floor(rand(0,3))]; const x=Math.random()<0.5? rand(40, world.w*0.2): rand(world.w*0.8, world.w-40); const y=rand(40, world.h-40); enemies.push(enemy(t,x,y)); } }
-let killCount=0, midSpawned=false, bossSpawned=false;
-function shootAt(x,y,a, sp){ ebullets.push({x,y,a,sp,life:3}); }
-function radialBurst(x,y,n, sp){ for(let i=0;i<n;i++){ const a=i/n*Math.PI*2; ebullets.push({x,y,a,sp,life:3}); } }
-function spiral(x,y,n, sp){ const base=t*3; for(let i=0;i<n;i++){ const a=base + i*0.45; ebullets.push({x,y,a,sp,life:3.2}); } }
+// === Item spawn（全方向から時間で飛来。開始時に1つ即時） === let itemTimer=0, itemInterval=4.5; let started=false; function spawnItemFromEdge(immediate=false){ const shape=SHAPES[Math.floor(rand(0,SHAPES.length))]; const side=Math.floor(rand(0,4)); let x=0,y=0; if(side===0){x=rand(0,ARENA.w);y=-24;} if(side===1){x=ARENA.w+24;y=rand(0,ARENA.h);} if(side===2){x=rand(0,ARENA.w);y=ARENA.h+24;} if(side===3){x=-24;y=rand(0,ARENA.h);} const it=makeItem(shape,x,y); const a=Math.atan2(player.y-y, player.x-x); const sp=220; it.vx=Math.cos(a)*sp; it.vy=Math.sin(a)*sp; it.angle=a; items.push(it); if(immediate){ it.life=10; } }
 
-// ===== Title Buttons =====
-function showTitle(){ document.getElementById('overlay').style.display='grid'; }
-function hideTitle(){ document.getElementById('overlay').style.display='none'; }
+// 初回：スタートと同時に1個 spawnItemFromEdge(true);
 
-document.getElementById('startBtn').addEventListener('click',()=>{
-  CONFIG.itemCount=Number(document.getElementById('opt_items').value);
-  CONFIG.itemSizeMul=Number(document.getElementById('opt_isize').value);
-  CONFIG.enemyHpMul=Number(document.getElementById('opt_ehp').value);
-  CONFIG.playerSpeed=Number(document.getElementById('opt_psp').value);
-  startGame();
-});
+// === Update === let t0=performance.now(); function update(dt){ // 移動 let ax=joyDX, ay=joyDY; const len=Math.hypot(ax,ay)||1; ax/=len; ay/=len; player.x+=axplayer.speeddt; player.y+=ayplayer.speeddt; player.x=clamp(player.x,player.r,ARENA.w-player.r); player.y=clamp(player.y,player.r,ARENA.h-player.r); if(ax||ay) player.dir=Math.atan2(ay,ax);
 
-function reset(){ player.x=world.w/2; player.y=world.h/2; player.dir=0; player.inv=0; player.items.length=0; player.life=player.maxLife; player.speed=CONFIG.playerSpeed;
-  items.length=0; for(let i=0;i<CONFIG.itemCount;i++) items.push(makeItem(rand(80,world.w-80), rand(80,world.h-80)));
-  enemies.length=0; ebullets.length=0; killCount=0; midSpawned=false; bossSpawned=false; spawnWave(12);
-}
-function startGame(){ reset(); state=STATE.PLAY; hideTitle(); }
+// 敵出現（順番に） enemyTimer-=dt; if(enemyTimer<=0){ spawnEnemyFromEdge(); enemyTimer=enemyInterval; }
 
-// ===== Update =====
-function update(dt){ t+=dt; // move
-  let ax=0, ay=0; if(joyDX||joyDY){ ax=joyDX; ay=joyDY; } if(key['ArrowLeft']||key['a']||key['A']) ax-=1; if(key['ArrowRight']||key['d']||key['D']) ax+=1; if(key['ArrowUp']||key['w']||key['W']) ay-=1; if(key['ArrowDown']||key['s']||key['S']) ay+=1; const len=Math.hypot(ax,ay)||1; ax/=len; ay/=len; player.x+=ax*player.speed*dt; player.y+=ay*player.speed*dt; player.x=clamp(player.x,20,world.w-20); player.y=clamp(player.y,20,world.h-20); if(ax||ay) player.dir=Math.atan2(ay,ax); if(player.inv>0) player.inv-=dt;
-  // attached positions
-  for(const it of player.items){ const par=it.parent||player; const targetAng=(par===player? player.dir:par.angle); it.angle+=(targetAng-it.angle)*0.2; it.x=par.x+Math.cos(it.angle)*it.off; it.y=par.y+Math.sin(it.angle)*it.off; }
-  // ground wobble
-  for(const it of items){ if(it.attached) continue; it.angle+=dt*0.4; }
-  // auto attach to player body
-  for(const it of items){ if(it.attached) continue; if(dist(it.x,it.y,player.x,player.y)<player.r+it.size*0.45){ attachToPlayer(it); } }
-  // chain attach to attached item
-  for(const it of items){ if(it.attached) continue; for(const at of player.items){ if(dist(it.x,it.y,at.x,at.y) < (at.size*0.5 + it.size*0.4)) { attachToItem(at,it); break; } } }
-  // enemy AI
-  for(const e of enemies){ e.cd-=dt; const dx=player.x-e.x, dy=player.y-e.y; const d=Math.hypot(dx,dy)||1; if(e.type==='z1'){ const sp=80; e.vx=dx/d*sp; e.vy=dy/d*sp; } else if(e.type==='z2'){ const sp=60; if(e.cd<=0){ e.cd=rand(0.6,1.2); const a=rand(0,Math.PI*2); e.vx=Math.cos(a)*sp; e.vy=Math.sin(a)*sp; } } else if(e.type==='z3'){ const sp=70; const desired=220; const dir=(d>desired?1:-1); e.vx=dx/d*sp*dir; e.vy=dy/d*sp*dir; if(e.cd<=0 && d<360){ e.cd=rand(1.0,1.6); shootAt(e.x,e.y, Math.atan2(dy,dx), 180); } } else if(e.type==='mid'){ const sp=85; e.vx=dx/d*sp; e.vy=dy/d*sp; if(e.cd<=0){ e.cd=1.8; radialBurst(e.x,e.y,8,220); } } else if(e.type==='boss'){ const sp=90; const a=Math.atan2(dy,dx); e.vx=Math.cos(a+Math.sin(t*0.7)*0.6)*sp*0.6; e.vy=Math.sin(a+Math.cos(t*0.7)*0.6)*sp*0.6; if(e.cd<=0){ e.cd=1.4; spiral(e.x,e.y,14,260); } } e.x+=e.vx*dt; e.y+=e.vy*dt; e.x=clamp(e.x,16,world.w-16); e.y=clamp(e.y,16,world.h-16); }
-  // bullets
-  for(const b of ebullets){ b.x+=Math.cos(b.a)*b.sp*dt; b.y+=Math.sin(b.a)*b.sp*dt; b.life-=dt; } for(let i=ebullets.length-1;i>=0;i--) if(ebullets[i].life<=0) ebullets.splice(i,1);
-  // damage: item vs enemy
-  for(const e of enemies){ for(const it of player.items){ const rr=it.size*0.45; if(dist(e.x,e.y,it.x,it.y)<e.r+rr){ const damage=40*dt; e.hp-=damage; cam.shake=Math.min(8,cam.shake+0.6); } } }
-  // enemy hit player
-  for(const e of enemies){ if(dist(e.x,e.y,player.x,player.y)<e.r+player.r){ if(player.inv<=0){ player.life-=12; player.inv=0.8; cam.shake=8; } const a=Math.atan2(player.y-e.y, player.x-e.x); player.x+=Math.cos(a)*18; player.y+=Math.sin(a)*18; } }
-  for(const b of ebullets){ if(dist(b.x,b.y,player.x,player.y)<player.r+4){ if(player.inv<=0){ player.life-=8; player.inv=0.8; cam.shake=6; } b.life=0; } }
-  // death & drops
-  for(let i=enemies.length-1;i>=0;i--){ const e=enemies[i]; if(e.hp<=0){ enemies.splice(i,1); killCount++; if(Math.random()<0.4) items.push(makeItem(e.x+rand(-10,10), e.y+rand(-10,10))); } }
-  // pacing
-  if(!midSpawned && killCount>=12){ enemies.push(enemy('mid', world.w/2, 140)); midSpawned=true; }
-  if(midSpawned && !bossSpawned){ const midAlive=enemies.some(e=>e.type==='mid'); if(!midAlive){ bossSpawned=true; enemies.push(enemy('boss', world.w/2, world.h/2-240)); } }
-  // life
-  if(player.life<=0){ state=STATE.OVER; showTitle(); }
-}
+// 敵AI：プレイヤーへ直進 for(const e of enemies){ const a=Math.atan2(player.y-e.y, player.x-e.x); const sp=100; e.vx=Math.cos(a)sp; e.vy=Math.sin(a)sp; e.x+=e.vxdt; e.y+=e.vydt; }
 
-// ===== Draw =====
-function draw(){ ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,cv.width,cv.height); ctx.restore(); cam.x+=((player.x-cv.clientWidth/2)-cam.x)*0.08; cam.y+=((player.y-cv.clientHeight/2)-cam.y)*0.08; const sh=cam.shake; cam.shake=Math.max(0,cam.shake-0.9); const sx=(Math.random()*2-1)*sh; const sy=(Math.random()*2-1)*sh; ctx.save(); ctx.translate(-cam.x+sx,-cam.y+sy);
-  // grid
-  const step=64; ctx.strokeStyle='rgba(96,165,250,0.08)'; ctx.lineWidth=1; ctx.beginPath(); for(let x=Math.floor((cam.x-400)/step)*step; x<cam.x+cv.clientWidth+400; x+=step){ ctx.moveTo(x, cam.y-300); ctx.lineTo(x, cam.y+cv.clientHeight+300);} for(let y=Math.floor((cam.y-300)/step)*step; y<cam.y+cv.clientHeight+300; y+=step){ ctx.moveTo(cam.x-400, y); ctx.lineTo(cam.x+cv.clientWidth+400, y);} ctx.stroke();
-  // ground items
-  for(const it of items){ if(it.attached) continue; drawItem(it); }
-  // bullets
-  for(const b of ebullets){ ctx.fillStyle='#eab308'; ctx.beginPath(); ctx.arc(b.x,b.y,4,0,Math.PI*2); ctx.fill(); }
-  // enemies
-  for(const e of enemies){ ctx.save(); ctx.translate(e.x,e.y); drawEnemy(e); ctx.restore(); }
-  // player + attached
-  drawPlayer(); for(const it of player.items){ drawItem(it); }
-  ctx.restore();
-  // UI
-  document.querySelector('#lifebar .fill').style.width=(clamp(player.life,0,player.maxLife)/player.maxLife*100)+'%';
-  document.querySelector('#lifebar .txt').textContent=`LIFE ${Math.max(0,Math.ceil(player.life))}/${player.maxLife}`;
-}
-function drawPlayer(){ ctx.save(); ctx.translate(player.x,player.y); ctx.fillStyle= player.inv>0? 'rgba(96,165,250,0.9)':'#cbd5e1'; ctx.beginPath(); ctx.arc(0,0,player.r,0,Math.PI*2); ctx.fill(); ctx.strokeStyle='#60a5fa'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(0,0,player.r+2,player.dir-0.3,player.dir+0.3); ctx.stroke(); ctx.restore(); }
-function drawEnemy(e){ if(e.type==='z1'){ ctx.fillStyle='#f59e0b'; drawBlob(e.r); } if(e.type==='z2'){ ctx.fillStyle='#a78bfa'; drawBlob(e.r); } if(e.type==='z3'){ ctx.fillStyle='#38bdf8'; drawBlob(e.r); } if(e.type==='mid'){ ctx.fillStyle='#ef4444'; drawBlob(e.r); ctx.strokeStyle='#fecaca'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(0,0,e.r+4,0,Math.PI*2); ctx.stroke(); } if(e.type==='boss'){ ctx.fillStyle='#ef4444'; drawBlob(e.r); ctx.strokeStyle='#fca5a5'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(0,0,e.r+6,0,Math.PI*2); ctx.stroke(); } const hp=e.hp/e.maxHp; ctx.strokeStyle='rgba(255,255,255,0.8)'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(0,0,e.r+8,-Math.PI/2,-Math.PI/2+Math.PI*2*hp); ctx.stroke(); }
-function drawBlob(r){ ctx.beginPath(); for(let i=0;i<12;i++){ const a=i/12*Math.PI*2; const rr=r+Math.sin((t*2+i)*0.8)*1.4; const x=Math.cos(a)*rr, y=Math.sin(a)*rr; if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);} ctx.closePath(); ctx.fill(); }
-function drawItem(it){ const s=it.size; ctx.save(); ctx.translate(it.x,it.y); ctx.rotate(it.angle); if(it.attached) ctx.shadowColor='#60a5fa55', ctx.shadowBlur=10; if(it.shape==='circle'){ ctx.fillStyle = it.attached? '#86efac' : '#34d399'; ctx.beginPath(); ctx.arc(0,0,s*0.5,0,Math.PI*2); ctx.fill(); } else if(it.shape==='triangle'){ ctx.fillStyle = it.attached? '#93c5fd' : '#60a5fa'; ctx.beginPath(); ctx.moveTo(-s*0.5, s*0.4); ctx.lineTo(0, -s*0.5); ctx.lineTo(s*0.5, s*0.4); ctx.closePath(); ctx.fill(); } else { ctx.fillStyle = it.attached? '#fca5a5' : '#f87171'; ctx.fillRect(-s*0.6,-s*0.22,s*1.2,s*0.44); } ctx.restore(); }
+// アイテム飛来 itemTimer-=dt; if(itemTimer<=0){ spawnItemFromEdge(); itemTimer=itemInterval; } for(const it of items){ if(it.flying){ it.x+=it.vxdt; it.y+=it.vydt; it.life-=dt; if(it.life<=0){ it.flying=false; } } // 自動装着：プレイヤーまたは装着済みアイテムに接触 if(!it.attached){ if(dist(it.x,it.y,player.x,player.y) < player.r + it.size0.45){ attachTo(player,it); } else { for(const at of player.items){ if(dist(it.x,it.y,at.x,at.y) < (at.size0.5 + it.size*0.45)){ attachTo(at,it); break; } } } } }
 
-// ===== Loop =====
-function step(){ const nt=now(); dt=(nt-t0)/1000; t0=nt; if(state===STATE.PLAY) update(dt); draw(); requestAnimationFrame(step); } requestAnimationFrame(step);
-showTitle();
+// 装着アイテムの位置（扇形に配置） for(let i=0;i<player.items.length;i++){ const it=player.items[i]; const par=it.parent||player; const targetAng=(par===player? player.dir : par.angle); const spread=(player.items.length>1? (i-(player.items.length-1)/2)*0.5:0); it.angle+= (targetAng+spread - it.angle)*0.25; it.x=par.x+Math.cos(it.angle)*it.off; it.y=par.y+Math.sin(it.angle)*it.off; }
 
-document.addEventListener('touchmove', e=>{ if(e.target.closest('canvas, #joy')) e.preventDefault(); }, {passive:false});
-</script></body>
+// 当たり判定：装着アイテム vs 敵（ダメージ＆耐久消耗） for(const e of enemies){ for(const it of player.items){ const rr=it.size0.45; if(dist(e.x,e.y,it.x,it.y) < e.r + rr){ const dmg=it.atkdt2.2; e.hp-=dmg; it.dur-=dmg0.9; if(it.dur<0) it.dur=0; } } } // 敵がプレイヤーに接触 for(const e of enemies){ if(dist(e.x,e.y,player.x,player.y) < e.r + player.r){ if(player.inv<=0){ player.life-=12; player.inv=0.8; } const a=Math.atan2(player.y-e.y, player.x-e.x); player.x+=Math.cos(a)*14; player.y+=Math.sin(a)*14; } } if(player.inv>0) player.inv-=dt;
+
+// アイテム破壊 for(let i=player.items.length-1;i>=0;i--){ const it=player.items[i]; if(it.dur<=0){ player.items.splice(i,1); } }
+
+// 敵消滅 for(let i=enemies.length-1;i>=0;i--){ if(enemies[i].hp<=0){ enemies.splice(i,1); } } }
+
+// === Draw === function draw(){ ctx.clearRect(0,0,cv.width,cv.height); // 背景グリッド ctx.strokeStyle='rgba(96,165,250,0.08)'; ctx.lineWidth=1; ctx.beginPath(); for(let x=0;x<ARENA.w;x+=64){ ctx.moveTo(x,0); ctx.lineTo(x,ARENA.h);} for(let y=0;y<ARENA.h;y+=64){ ctx.moveTo(0,y); ctx.lineTo(ARENA.w,y);} ctx.stroke(); // アイテム（未装着） for(const it of items){ if(!it.attached) drawItem(it); } // プレイヤー ctx.fillStyle = player.inv>0? 'rgba(96,165,250,0.9)':'#cbd5e1'; ctx.beginPath(); ctx.arc(player.x,player.y,player.r,0,Math.PI2); ctx.fill(); // 装着アイテム for(const it of player.items){ drawItem(it,true); // true => attached // 中心から線 ctx.strokeStyle='rgba(148,163,184,0.35)'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(player.x,player.y); ctx.lineTo(it.x,it.y); ctx.stroke(); } // 敵 ctx.fillStyle='#f87171'; for(const e of enemies){ ctx.beginPath(); ctx.arc(e.x,e.y,e.r,0,Math.PI2); ctx.fill(); } }
+
+function drawItem(it,attached=false){ const scale = attached? (0.6 + 0.4clamp(it.dur/it.maxDur,0,1)) : 1.0; const s=it.sizescale; ctx.save(); ctx.translate(it.x,it.y); ctx.rotate(it.angle); if(attached) ctx.shadowColor='#60a5fa66', ctx.shadowBlur=10; if(it.shape==='circle'){ ctx.fillStyle = attached? '#86efac' : '#34d399'; ctx.beginPath(); ctx.arc(0,0,s0.5,0,Math.PI2); ctx.fill(); } else if(it.shape==='triangle'){ ctx.fillStyle = attached? '#93c5fd' : '#60a5fa'; ctx.beginPath(); ctx.moveTo(-s0.5, s0.4); ctx.lineTo(0,-s0.55); ctx.lineTo(s0.5, s0.4); ctx.closePath(); ctx.fill(); } else { ctx.fillStyle = attached? '#fca5a5' : '#f87171'; ctx.fillRect(-s0.6,-s0.22,s1.2,s0.44); } if(attached){ // 耐久リング ctx.strokeStyle='rgba(203,213,225,0.8)'; ctx.lineWidth=2; const k=clamp(it.dur/it.maxDur,0,1); ctx.beginPath(); ctx.arc(0,0, Math.max(16, s0.6), -Math.PI/2, -Math.PI/2 + Math.PI2k ); ctx.stroke(); } ctx.restore(); }
+
+// === Loop === function loop(){ const nt=performance.now(); const dt=(nt-t0)/1000; t0=nt; update(dt); draw(); requestAnimationFrame(loop);} loop();
+
+// スクロール抑止 addEventListener('touchmove', e=>{ if(e.target.closest('canvas, #joy')) e.preventDefault(); }, {passive:false}); </script>
+
+</body>
 </html>
