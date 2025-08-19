@@ -3,11 +3,9 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-<title>Stick-On Battle — 草原版（接着無制限＋KB倍率）</title>
+<title>Stick-On Battle — 安定版</title>
 <style>
-  :root{
-    --bg:#0b0f14; --panel:#0f1520; --ink:#e6edf3; --muted:#98a2b3; --accent:#60a5fa;
-  }
+  :root{--panel:#0f1520;--ink:#e6edf3;--muted:#98a2b3}
   *{box-sizing:border-box}
   html,body{height:100%;margin:0;background:#0b0f14;color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans JP","Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;overscroll-behavior:none}
   #wrap{position:fixed;inset:0}
@@ -16,15 +14,13 @@
   .card{width:min(980px,96vw);max-height:92vh;overflow:auto;background:var(--panel);border:1px solid #1f2937;border-radius:16px;padding:16px 16px 20px;box-shadow:0 20px 60px rgba(0,0,0,.45)}
   h1{margin:.2em 0;font-size:clamp(22px,4.8vw,36px)}
   .grid{display:grid;gap:12px}
-  .grid.cols{grid-template-columns:1fr}
   .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
   .muted{color:var(--muted);font-size:.95em}
-  .btn{appearance:none;border:0;border-radius:12px;background:linear-gradient(180deg,#60a5fa,#2563eb);color:white;padding:12px 16px;font-weight:700;cursor:pointer;box-shadow:0 8px 20px rgba(37,99,235,.35);}
+  .btn{appearance:none;border:0;border-radius:12px;background:linear-gradient(180deg,#60a5fa,#2563eb);color:white;padding:12px 16px;font-weight:700;cursor:pointer;box-shadow:0 8px 20px rgba(37,99,235,.35)}
   .btn.secondary{background:#1f2937}
   .btn:active{transform:translateY(1px)}
   label{display:flex;gap:10px;align-items:center;justify-content:space-between;background:#0b1220;border:1px solid #1f2937;border-radius:12px;padding:10px 12px}
-  input[type="range"]{width:220px}
-  select, input[type="checkbox"]{accent-color:#60a5fa}
+  input[type="range"]{width:220px} select,input[type="checkbox"]{accent-color:#60a5fa}
   .hidden{display:none !important}
 
   /* HUD */
@@ -32,24 +28,17 @@
   #hudBar{position:absolute;left:10px;top:10px;display:flex;gap:10px;align-items:center}
   #lifeBar{width:200px;height:14px;border:1px solid #334155;border-radius:999px;background:#0b1220;overflow:hidden}
   #lifeFill{height:100%;background:linear-gradient(90deg,#22c55e,#84cc16);width:100%}
-  #wave{font-weight:700}
-  #score{font-weight:700;margin-left:8px}
-  #combo{margin-left:8px;color:#fbbf24;font-weight:700}
-  #hints{position:absolute;left:10px;bottom:10px;color:var(--muted);background:#0b1220cc;padding:6px 8px;border-radius:8px;border:1px solid #1f2937}
+  #wave{font-weight:700} #score{font-weight:700;margin-left:8px} #combo{margin-left:8px;color:#fbbf24;font-weight:700}
 
   /* 仮想スティック（右下固定） */
   #joy{position:absolute;right:12px;bottom:12px;width:min(34vw,200px);height:min(34vw,200px);touch-action:none;pointer-events:auto}
   .joy-base{position:absolute;inset:0;border-radius:50%;border:2px dashed #334155;background:#0b122088}
-  .joy-knob{--r:26%;position:absolute;left:50%;top:50%;width:var(--r);height:var(--r);border-radius:50%;
-    transform:translate(-50%,-50%);background:#1f2937;border:2px solid #64748b;box-shadow:0 4px 14px rgba(0,0,0,.45)}
-
-  .big{font-size:clamp(22px,5.2vw,40px);font-weight:900;letter-spacing:.04em}
-  .danger{color:#ef4444} .ok{color:#22c55e}
+  .joy-knob{--r:26%;position:absolute;left:50%;top:50%;width:var(--r);height:var(--r);border-radius:50%;transform:translate(-50%,-50%);background:#1f2937;border:2px solid #64748b;box-shadow:0 4px 14px rgba(0,0,0,.45)}
 </style>
 </head>
 <body>
 <div id="wrap">
-  <canvas id="cv" width="1280" height="720" aria-label="game-canvas"></canvas>
+  <canvas id="cv" width="1280" height="720"></canvas>
 
   <!-- HUD -->
   <div id="hud" class="hidden" aria-hidden="true">
@@ -59,60 +48,53 @@
       <div id="score">SCORE 0</div>
       <div id="combo"></div>
     </div>
-    <div id="hints">移動：右下のスティック / くっつけ：アイテムに触れるだけ</div>
   </div>
 
   <!-- 仮想スティック -->
   <div id="joy" class="hidden" aria-hidden="true">
-    <div class="joy-base"></div>
-    <div class="joy-knob" id="joyKnob"></div>
+    <div class="joy-base"></div><div class="joy-knob" id="joyKnob"></div>
   </div>
 
   <!-- タイトル -->
   <div id="title" class="overlay">
     <div class="card grid">
-      <h1>Stick-On Battle — 草原版（接着無制限＋KB倍率）</h1>
+      <h1>Stick-On Battle — 安定版</h1>
       <p class="muted">
-        ◯△▭をくっつけて敵を迎撃する見下ろしアクション。<br>
-        <strong>ノックバック：</strong>◯=中、△=大(強)、▭=弱。<strong>接着上限なし</strong>。<br>
-        草原背景はオフスクリーンで安定描画、長方形は<b>縦長</b>でさらにロング化。
+        ◯△▭をくっつけて敵にぶつけるだけ。<br>
+        ノックバック：◯=中 / △=大(強) / ▭=弱。接着上限なし。<br>
+        背景は草原（オフスクリーン）でチラつき無し。長方形は細い縦長。
       </p>
-      <div class="grid cols">
-        <label>難易度プリセット
-          <span>
-            <select id="difficulty">
+      <div class="grid">
+        <label>難易度
+          <span><select id="difficulty">
               <option value="EASY">EASY</option>
               <option value="NORMAL" selected>NORMAL</option>
               <option value="HARD">HARD</option>
-            </select>
-          </span>
+          </select></span>
         </label>
-        <label>画面シェイク <span><input id="optShake" type="checkbox" checked /></span></label>
-        <label>サウンド <span><input id="optSound" type="checkbox" /></span></label>
+        <label>画面シェイク <span><input id="optShake" type="checkbox" checked></span></label>
+        <label>サウンド <span><input id="optSound" type="checkbox"></span></label>
 
-        <label>アイテム最大数（画面上） <span><output id="oMaxItem">5</output> 個</span>
-          <input id="sMaxItem" type="range" min="3" max="8" step="1" value="5" />
+        <label>アイテム総数（画面上） <span><output id="oMaxItem">5</output> 個</span>
+          <input id="sMaxItem" type="range" min="3" max="8" step="1" value="5">
         </label>
-
         <label>敵ライフ倍率 <span><output id="oEnemyHP">1.0</output> x</span>
-          <input id="sEnemyHP" type="range" min="0.5" max="3.0" step="0.1" value="1.0" />
+          <input id="sEnemyHP" type="range" min="0.5" max="3.0" step="0.1" value="1.0">
         </label>
         <label>アイテム耐久倍率 <span><output id="oItemDur">1.0</output> x</span>
-          <input id="sItemDur" type="range" min="0.5" max="3.0" step="0.1" value="1.0" />
+          <input id="sItemDur" type="range" min="0.5" max="3.0" step="0.1" value="1.0">
         </label>
-
         <label>ノックバック倍率 <span><output id="oKBMul">1.0</output> x</span>
-          <input id="sKBMul" type="range" min="0.3" max="2.5" step="0.1" value="1.0" />
+          <input id="sKBMul" type="range" min="0.3" max="2.5" step="0.1" value="1.0">
         </label>
-
         <label>敵の出現間隔 <span><output id="oEnemy">900</output> ms</span>
-          <input id="sEnemy" type="range" min="250" max="1600" step="50" value="900" />
+          <input id="sEnemy" type="range" min="250" max="1600" step="50" value="900">
         </label>
         <label>アイテムの出現間隔 <span><output id="oItem">1100</output> ms</span>
-          <input id="sItem" type="range" min="600" max="3000" step="50" value="1100" />
+          <input id="sItem" type="range" min="600" max="3000" step="50" value="1100">
         </label>
         <label>プレイヤー移動速度 <span><output id="oSpeed">260</output> px/s</span>
-          <input id="sSpeed" type="range" min="160" max="380" step="10" value="260" />
+          <input id="sSpeed" type="range" min="160" max="380" step="10" value="260">
         </label>
       </div>
       <div class="row">
@@ -123,25 +105,23 @@
     </div>
   </div>
 
-  <!-- ゲームオーバー -->
+  <!-- 結果オーバーレイ -->
   <div id="gameover" class="overlay hidden">
-    <div class="card grid" style="text-align:center">
-      <div class="big danger">GAME OVER</div>
-      <div class="muted">もう一度挑戦してみましょう。</div>
+    <div class="card" style="text-align:center">
+      <h2>GAME OVER</h2>
+      <p class="muted">もう一度挑戦！</p>
       <div class="row" style="justify-content:center">
-        <button id="btnRetry1" class="btn">タイトルへ戻る</button>
+        <button id="btnRetry1" class="btn">タイトルへ</button>
         <button id="btnRestart1" class="btn secondary">同じ設定で再開</button>
       </div>
     </div>
   </div>
-
-  <!-- クリア -->
   <div id="clear" class="overlay hidden">
-    <div class="card grid" style="text-align:center">
-      <div class="big ok">STAGE CLEAR!</div>
-      <div id="clearStats" class="muted" style="white-space:pre-line"></div>
+    <div class="card" style="text-align:center">
+      <h2>STAGE CLEAR!</h2>
+      <pre id="clearStats" class="muted"></pre>
       <div class="row" style="justify-content:center">
-        <button id="btnRetry2" class="btn">タイトルへ戻る</button>
+        <button id="btnRetry2" class="btn">タイトルへ</button>
         <button id="btnRestart2" class="btn secondary">同じ設定で再開</button>
       </div>
     </div>
@@ -149,23 +129,14 @@
 </div>
 
 <script>
-/* =====================================================
-   変更点：
-   ・ノックバック倍率スライダー追加（全アイテムに乗算）
-   ・ノックバック配分：◯=中 / △=大(強) / ▭=弱（長方形さらにロング、縦長）
-   ・敵はKBを受け「先に吹き飛んでから」ダメージが入る順序へ
-   ・草原背景はオフスクリーン生成でちらつき防止
-   ・接着上限なし、画面上アイテム数はスライダーで制御
-===================================================== */
 (() => {
   'use strict';
 
-  // ---------- キャンバス ----------
+  /* ===== キャンバスと背景（オフスクリーン草原） ===== */
   const cv = document.getElementById('cv');
   const ctx = cv.getContext('2d');
-
-  // 草原オフスクリーン（ちらつき防止）
   let grassCan = null, grassCtx = null;
+
   function buildGrass(w,h){
     grassCan = document.createElement('canvas');
     grassCan.width = w; grassCan.height = h;
@@ -181,39 +152,34 @@
       const px = srand(i+1)*w, py = srand(i+2)*h;
       const rx = 120 + srand(i+3)*160, ry = 60 + srand(i+4)*120;
       const ang = srand(i+5)*Math.PI*2;
-      grassCtx.save();
-      grassCtx.translate(px,py); grassCtx.rotate(ang);
+      grassCtx.save(); grassCtx.translate(px,py); grassCtx.rotate(ang);
       grassCtx.fillStyle = (i%2===0)?'#2aa357':'#0e5e33';
       grassCtx.beginPath(); grassCtx.ellipse(0,0,rx,ry,0,0,Math.PI*2); grassCtx.fill();
       grassCtx.restore();
     }
     grassCtx.globalAlpha = 1;
-
-    grassCtx.strokeStyle = 'rgba(255,255,255,0.05)';
-    grassCtx.lineWidth = 1;
+    grassCtx.strokeStyle = 'rgba(255,255,255,0.05)'; grassCtx.lineWidth = 1;
     for (let x=0; x<w; x+=40){
-      grassCtx.beginPath();
-      grassCtx.moveTo(x,0);
+      grassCtx.beginPath(); grassCtx.moveTo(x,0);
       grassCtx.quadraticCurveTo(x+15,h*0.33, x, h*0.66);
-      grassCtx.quadraticCurveTo(x-15,h*0.83, x, h);
-      grassCtx.stroke();
+      grassCtx.quadraticCurveTo(x-15,h*0.83, x, h); grassCtx.stroke();
     }
   }
 
   function fitCanvas() {
-    const w = Math.max(1, Math.floor(window.innerWidth));
-    const h = Math.max(1, Math.floor(window.innerHeight));
-    const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    const w = Math.max(1, Math.floor(innerWidth));
+    const h = Math.max(1, Math.floor(innerHeight));
+    const dpr = Math.max(1, Math.min(2, devicePixelRatio || 1));
     cv.style.width = w + 'px'; cv.style.height = h + 'px';
     cv.width = Math.floor(w * dpr); cv.height = Math.floor(h * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    buildGrass(w, h); // サイズ変更時のみ再生成
+    buildGrass(w, h); // リサイズ時のみ作り直し
   }
   fitCanvas();
   addEventListener('resize', fitCanvas, {passive:true});
   addEventListener('orientationchange', () => setTimeout(fitCanvas, 100), {passive:true});
 
-  // ---------- DOM ----------
+  /* ===== DOM参照 ===== */
   const hud = document.getElementById('hud');
   const lifeFill = document.getElementById('lifeFill');
   const waveLabel = document.getElementById('wave');
@@ -224,6 +190,7 @@
   const clear = document.getElementById('clear');
   const joy = document.getElementById('joy');
   const joyKnob = document.getElementById('joyKnob');
+
   const btnStart = document.getElementById('btnStart');
   const btnHow = document.getElementById('btnHow');
   const btnRetry1 = document.getElementById('btnRetry1');
@@ -231,542 +198,346 @@
   const btnRetry2 = document.getElementById('btnRetry2');
   const btnRestart2 = document.getElementById('btnRestart2');
 
-  const sEnemy = document.getElementById('sEnemy');
-  const sItem  = document.getElementById('sItem');
-  const sSpeed = document.getElementById('sSpeed');
-  const sMaxItem = document.getElementById('sMaxItem');
-  const sEnemyHP = document.getElementById('sEnemyHP');
-  const sItemDur = document.getElementById('sItemDur');
-  const sKBMul   = document.getElementById('sKBMul');
-
-  const oEnemy = document.getElementById('oEnemy');
-  const oItem  = document.getElementById('oItem');
-  const oSpeed = document.getElementById('oSpeed');
-  const oMaxItem = document.getElementById('oMaxItem');
-  const oEnemyHP = document.getElementById('oEnemyHP');
-  const oItemDur = document.getElementById('oItemDur');
-  const oKBMul   = document.getElementById('oKBMul');
-
-  const clearStats = document.getElementById('clearStats');
-  const hiscoreLine = document.getElementById('hiscoreLine');
+  const difficultySel = document.getElementById('difficulty');
   const optShake = document.getElementById('optShake');
   const optSound = document.getElementById('optSound');
-  const difficultySel = document.getElementById('difficulty');
 
-  // ---------- ハイスコア ----------
-  const LS_KEY = 'stickon_hiscore_v4';
-  const hiscore = JSON.parse(localStorage.getItem(LS_KEY) || '{"bestTime":null,"bestKills":0}');
-  function setHiscoreLine() {
-    if (hiscore.bestTime!=null) {
-      hiscoreLine.textContent = `ベスト：${(hiscore.bestTime/1000).toFixed(1)}s / 撃破 ${hiscore.bestKills}`;
-    } else {
-      hiscoreLine.textContent = 'ベスト：未記録';
-    }
-  }
-  setHiscoreLine();
+  const sEnemy = document.getElementById('sEnemy'), oEnemy = document.getElementById('oEnemy');
+  const sItem  = document.getElementById('sItem') , oItem  = document.getElementById('oItem');
+  const sSpeed = document.getElementById('sSpeed'), oSpeed = document.getElementById('oSpeed');
+  const sMaxItem = document.getElementById('sMaxItem'), oMaxItem = document.getElementById('oMaxItem');
+  const sEnemyHP = document.getElementById('sEnemyHP'), oEnemyHP = document.getElementById('oEnemyHP');
+  const sItemDur = document.getElementById('sItemDur'), oItemDur = document.getElementById('oItemDur');
+  const sKBMul   = document.getElementById('sKBMul') , oKBMul   = document.getElementById('oKBMul');
 
-  // ---------- スライダー同期 ----------
-  const bindRange = (range, out, fmt=(v)=>v) => {
-    const sync = () => out.textContent = fmt(range.value);
-    range.addEventListener('input', sync, {passive:true}); sync();
-  };
-  bindRange(sEnemy,oEnemy);
-  bindRange(sItem,oItem);
-  bindRange(sSpeed,oSpeed);
-  bindRange(sMaxItem,oMaxItem);
-  bindRange(sEnemyHP,oEnemyHP, v=>Number(v).toFixed(1));
-  bindRange(sItemDur,oItemDur, v=>Number(v).toFixed(1));
-  bindRange(sKBMul,oKBMul, v=>Number(v).toFixed(1));
+  const hiscoreLine = document.getElementById('hiscoreLine');
+  const clearStats = document.getElementById('clearStats');
 
-  // ---------- サウンド ----------
-  let audioCtx = null;
+  /* ===== スライダー表示同期 ===== */
+  const bindRange = (r, o, f=(v)=>v) => { const sync=()=>o.textContent=f(r.value); r.addEventListener('input',sync,{passive:true}); sync(); };
+  bindRange(sEnemy,oEnemy); bindRange(sItem,oItem); bindRange(sSpeed,oSpeed);
+  bindRange(sMaxItem,oMaxItem); bindRange(sEnemyHP,oEnemyHP,v=>(+v).toFixed(1));
+  bindRange(sItemDur,oItemDur,v=>(+v).toFixed(1)); bindRange(sKBMul,oKBMul,v=>(+v).toFixed(1));
+
+  /* ===== サウンド ===== */
+  let audioCtx=null;
   function beep(kind='hit'){
-    if (!optSound.checked) return;
+    if(!optSound.checked) return;
     try{
-      if (!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
-      const o = audioCtx.createOscillator();
-      const g = audioCtx.createGain();
-      o.type = 'square';
-      o.frequency.value = (kind==='hit') ? 420 : (kind==='pickup'? 740 : (kind==='dead'? 220 : 520));
-      g.gain.value = 0.08;
-      o.connect(g); g.connect(audioCtx.destination);
-      o.start(); o.stop(audioCtx.currentTime + 0.09);
+      if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+      const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+      o.type='square'; o.frequency.value=(kind==='hit')?420:(kind==='pickup'?740:(kind==='dead'?220:520));
+      g.gain.value=0.08; o.connect(g); g.connect(audioCtx.destination);
+      o.start(); o.stop(audioCtx.currentTime+0.09);
     }catch{}
   }
 
-  // ---------- 入力 ----------
-  const input = { x:0, y:0, _active:false, _id:null, _cx:0, _cy:0, _radius:1 };
-  function layoutJoystick(){ const r=joy.getBoundingClientRect(); input._cx=r.width/2; input._cy=r.height/2; input._radius=Math.max(30, Math.min(r.width,r.height)*0.38); }
-  function stickSet(dx,dy){ const len=Math.hypot(dx,dy), max=input._radius; const nx=len>0?dx/len:0, ny=len>0?dy/len:0, mag=Math.min(len,max);
-    joyKnob.style.transform=`translate(${nx*mag}px, ${ny*mag}px) translate(-50%,-50%)`; input.x=(mag/max)*nx; input.y=(mag/max)*ny; }
+  /* ===== 入力（仮想スティック＋キーボード） ===== */
+  const input={x:0,y:0,active:false,id:null,cx:0,cy:0,rad:1};
+  function layoutJoystick(){ const r=joy.getBoundingClientRect(); input.cx=r.width/2; input.cy=r.height/2; input.rad=Math.max(30,Math.min(r.width,r.height)*0.38); }
+  function stickSet(dx,dy){ const len=Math.hypot(dx,dy), max=input.rad; const nx=len?dx/len:0, ny=len?dy/len:0, mag=Math.min(len,max);
+    joyKnob.style.transform=`translate(${nx*mag}px,${ny*mag}px) translate(-50%,-50%)`; input.x=(mag/max)*nx; input.y=(mag/max)*ny; }
   function stickReset(){ input.x=input.y=0; joyKnob.style.transform='translate(-50%,-50%)'; }
-  joy.addEventListener('pointerdown', (e)=>{ if(input._active)return; input._active=true; input._id=e.pointerId; try{joy.setPointerCapture(e.pointerId);}catch{}
-    const r=joy.getBoundingClientRect(); stickSet(e.clientX-(r.left+input._cx), e.clientY-(r.top+input._cy)); e.preventDefault(); });
-  joy.addEventListener('pointermove', (e)=>{ if(!input._active||e.pointerId!==input._id)return; const r=joy.getBoundingClientRect();
-    stickSet(e.clientX-(r.left+input._cx), e.clientY-(r.top+input._cy)); e.preventDefault(); });
-  function endStick(e){ if(!input._active||(e && e.pointerId!==input._id))return; input._active=false; input._id=null; stickReset(); }
-  joy.addEventListener('pointerup', endStick); joy.addEventListener('pointercancel', endStick);
+  joy.addEventListener('pointerdown',e=>{ if(input.active)return; input.active=true; input.id=e.pointerId; try{joy.setPointerCapture(e.pointerId);}catch{}
+    const r=joy.getBoundingClientRect(); stickSet(e.clientX-(r.left+input.cx), e.clientY-(r.top+input.cy)); e.preventDefault();});
+  joy.addEventListener('pointermove',e=>{ if(!input.active||e.pointerId!==input.id)return; const r=joy.getBoundingClientRect();
+    stickSet(e.clientX-(r.left+input.cx), e.clientY-(r.top+input.cy)); e.preventDefault();});
+  function endStick(e){ if(!input.active||(e && e.pointerId!==input.id))return; input.active=false; input.id=null; stickReset(); }
+  joy.addEventListener('pointerup',endStick); joy.addEventListener('pointercancel',endStick);
 
-  const keys = new Set();
-  addEventListener('keydown', e=>{ keys.add(e.key.toLowerCase()); }, {passive:true});
-  addEventListener('keyup', e=>{ keys.delete(e.key.toLowerCase()); }, {passive:true});
+  const keys=new Set(); addEventListener('keydown',e=>{keys.add(e.key.toLowerCase())},{passive:true}); addEventListener('keyup',e=>{keys.delete(e.key.toLowerCase())},{passive:true});
 
-  // ---------- ユーティリティ ----------
+  /* ===== ユーティリティ ===== */
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
   const rnd=(a,b)=>a+Math.random()*(b-a);
-  const dist2=(ax,ay,bx,by)=>{const dx=ax-bx,dy=ay-by; return dx*dx+dy*dy;};
+  const dist2=(ax,ay,bx,by)=>{const dx=ax-bx,dy=ay-by;return dx*dx+dy*dy;}
   const hit=(ax,ay,ar,bx,by,br)=> dist2(ax,ay,bx,by) <= (ar+br)*(ar+br);
-  const clamp01=v=>Math.max(0,Math.min(1,v));
 
-  // ---------- データ ----------
-  // ノックバック基準値：◯=中(28) / △=大(強=48) / ▭=弱(10)  ← スライダー倍率を乗算
-  const ITEM_TYPES = [
-    { key:'CIR', name:'◯', shape:'circle', atk:8,  dur:8, baseR:18, color:'#60a5fa', kb:28 },
-    { key:'TRI', name:'△', shape:'tri',    atk:16, dur:5, baseR:20, color:'#ff80ab', kb:48 },
-    { key:'REC', name:'▭', shape:'rect',   atk:12, dur:3, baseR:16, color:'#ffd166', kb:10, wh:[0.8,3.8] }, // 縦長に
+  /* ===== 定数（タイプ） ===== */
+  // ノックバック基準：◯=中28 / △=大48 / ▭=弱8（KB倍率を乗算）
+  const ITEM_TYPES=[
+    {k:'CIR',shape:'circle', atk:8,  dur:8, baseR:18, color:'#60a5fa', kb:28},
+    {k:'TRI',shape:'tri',    atk:16, dur:5, baseR:20, color:'#ff80ab', kb:48},
+    {k:'REC',shape:'rect',   atk:12, dur:3, baseR:15, color:'#ffd166', kb: 8, wh:[0.7,4.4]}, // 細い縦長
   ];
-  const ENEMY_TYPES = {
-    A:{ hp:10,  dmg:10,  spd:70,  baseR:14, color:'#9b59b6' },
-    B:{ hp:16,  dmg:12,  spd:100, baseR:12, color:'#e74c3c' },
-    C:{ hp:30,  dmg:16,  spd:50,  baseR:18, color:'#f39c12' },
-    MID:{ hp:120, dmg:20, spd:60, baseR:28, color:'#16a085' },
-    BOSS:{ hp:360, dmg:28, spd:70, baseR:34, color:'#e67e22' },
+  const ENEMY_TYPES={
+    A:{ hp:12,  dmg:10,  spd:70,  baseR:14, color:'#9b59b6'},
+    B:{ hp:18,  dmg:12,  spd:100, baseR:12, color:'#e74c3c'},
+    C:{ hp:30,  dmg:16,  spd:55,  baseR:18, color:'#f39c12'},
+    MID:{hp:120, dmg:20, spd:60,  baseR:28, color:'#16a085'},
+    BOSS:{hp:360, dmg:28, spd:70, baseR:34, color:'#e67e22'},
   };
-  const DIR8 = [[0,-1],[0.707,-0.707],[1,0],[0.707,0.707],[0,1],[-0.707,0.707],[-1,0],[-0.707,-0.707]];
-  const WAVES = [
-    { name:'WAVE 1', plan:[...'AAAAAAAAAAAA'] },
-    { name:'WAVE 2', plan:[...'BBBBBBBBBBBBBB'] },
-    { name:'WAVE 3', plan:[...'CCCCCCCCCCCC'] },
-    { name:'MID BOSS', plan:['MID'] },
-    { name:'WAVE 4', plan:[...'ABACBCABABACABAC'] },
-    { name:'BOSS', plan:['BOSS'] },
+  const DIR8=[[0,-1],[0.707,-0.707],[1,0],[0.707,0.707],[0,1],[-0.707,0.707],[-1,0],[-0.707,-0.707]];
+  const WAVES=[
+    {name:'WAVE 1', plan:[...'AAAAAAAAAAAA']},
+    {name:'WAVE 2', plan:[...'BBBBBBBBBBBBBB']},
+    {name:'WAVE 3', plan:[...'CCCCCCCCCCCC']},
+    {name:'MID BOSS', plan:['MID']},
+    {name:'WAVE 4', plan:[...'ABACBCABABACABAC']},
+    {name:'BOSS', plan:['BOSS']},
   ];
-  const DIFF = {
-    EASY:   { enemySpd:0.9, enemyHP:0.9, spawnMul:1.15 },
-    NORMAL: { enemySpd:1.0, enemyHP:1.0, spawnMul:1.00 },
-    HARD:   { enemySpd:1.15, enemyHP:1.15, spawnMul:0.9 },
-  };
+  const DIFF={EASY:{enemySpd:0.9,enemyHP:0.9,spawnMul:1.15},NORMAL:{enemySpd:1.0,enemyHP:1.0,spawnMul:1.0},HARD:{enemySpd:1.15,enemyHP:1.15,spawnMul:0.9}};
 
-  // ---------- 状態 ----------
-  const STATE = { TITLE:0, PLAY:1, OVER:2, CLEAR:3 };
-  let state = STATE.TITLE;
-  let params = {
-    enemyInterval:900, itemInterval:1100, playerSpeed:260,
-    maxItems:5, enemyHPmul:1.0, itemDurMul:1.0, kbMul:1.0
-  };
-  let player, enemies=[], flyingItems=[], attachedItems=[];
-  let waveIndex=0, planIndex=0, enemyDirIndex=0, itemDirIndex=0;
-  let arrows = []; // 予告矢印
-  let timers = { enemy:0, item:0 };
-  let time=0, lastT=performance.now();
-  let stats = { playTime:0, enemiesDefeated:0, itemsAttached:0, score:0, combo:1, comboT:0 };
-  let shake = { t:0, mag:0 };
+  /* ===== ゲーム状態 ===== */
+  const STATE={TITLE:0,PLAY:1,OVER:2,CLEAR:3};
+  let state=STATE.TITLE;
 
-  // ---------- 予告矢印 ----------
-  function addArrow(dir){
-    const life = 600;
-    const w=cv.clientWidth,h=cv.clientHeight, pad=6;
-    const [dx,dy]=DIR8[dir%8]; let x=(dx>0)?(w-pad):((dx<0)?pad:w/2), y=(dy>0)?(h-pad):((dy<0)?pad:h/2);
-    arrows.push({x,y,dir,life});
-  }
+  // パラメータ（UIから反映）
+  const params={enemyInterval:900,itemInterval:1100,playerSpeed:260,maxItems:5,enemyHPmul:1.0,itemDurMul:1.0,kbMul:1.0};
+  // ランタイム
+  let player, enemies, flyingItems, attachedItems, arrows, timers, time, lastT, waveIndex, planIndex, enemyDirIndex, itemDirIndex, stats, shake;
 
-  // ---------- スポーン ----------
-  function edgePos(dir) {
-    const w = cv.clientWidth, h = cv.clientHeight;
-    const margin = 30;
-    const [dx,dy] = DIR8[dir%8];
-    let x = (dx>0) ? w+margin : (dx<0 ? -margin : rnd(0,w));
-    let y = (dy>0) ? h+margin : (dy<0 ? -margin : rnd(0,h));
-    if (dx===0){ x = rnd(0,w); } if (dy===0){ y = rnd(0,h); }
-    return {x,y};
-  }
-  function spawnEnemy(key){
-    const dir = (enemyDirIndex++)%8;
-    addArrow(dir);
-    const p = edgePos(dir);
-    const t0 = ENEMY_TYPES[key];
-    const d = DIFF[difficultySel.value];
-    const hpMul = d.enemyHP * params.enemyHPmul;
-    const t = { ...t0, hp: Math.round(t0.hp * hpMul), spd: Math.round(t0.spd*d.enemySpd) };
-    enemies.push({
-      x:p.x, y:p.y, hp:t.hp, hpMax:t.hp, dmg:t.dmg, spd:t.spd,
-      baseR:t.baseR, color:t.color, type:key,
-      hitFx:0, phase:'normal', charge:0, dash:0
-    });
-  }
-  function spawnItem(){
-    if (attachedItems.length + flyingItems.length >= params.maxItems) return;
-    const dir = (itemDirIndex++)%8;
-    const p = edgePos(dir);
-    const Tbase = ITEM_TYPES[Math.floor(Math.random()*ITEM_TYPES.length)];
-    const T = { ...Tbase, dur: Math.max(1, Math.round(Tbase.dur * params.itemDurMul)) };
-    const ang = Math.atan2(player.y - p.y, player.x - p.x);
-    const speed = 120 + Math.random()*60;
-    flyingItems.push({ x:p.x, y:p.y, vx:Math.cos(ang)*speed, vy:Math.sin(ang)*speed, type:T, dur:T.dur, bornT:time });
-  }
-  function currentWave(){ return WAVES[waveIndex]; }
-  function advanceSpawn(dt){
-    timers.enemy -= dt;
-    const wv = currentWave();
-    const spMul = DIFF[difficultySel.value].spawnMul;
-    if (timers.enemy<=0 && wv && planIndex < wv.plan.length){
-      spawnEnemy(wv.plan[planIndex++]);
-      timers.enemy += params.enemyInterval * (1/spMul);
-    }
-    if (wv && planIndex>=wv.plan.length && enemies.length===0){
-      waveIndex++; planIndex=0;
-      if (waveIndex < WAVES.length) waveLabel.textContent = WAVES[waveIndex].name;
-      else finishClear();
-    }
-    timers.item -= dt;
-    if (timers.item<=0){ spawnItem(); timers.item += params.itemInterval; }
-  }
+  // ハイスコア
+  const LS_KEY='stickon_hiscore_stable';
+  const hiscore=JSON.parse(localStorage.getItem(LS_KEY)||'{"bestTime":null,"bestKills":0}');
+  function setHiscoreLine(){ const l=document.getElementById('hiscoreLine'); l.textContent=(hiscore.bestTime!=null)?`ベスト：${(hiscore.bestTime/1000).toFixed(1)}s / 撃破 ${hiscore.bestKills}`:'ベスト：未記録'; }
+  setHiscoreLine();
 
-  // ---------- 初期化 ----------
+  /* ===== 初期化/開始/終了 ===== */
   function applyParamsFromUI(){
-    params.enemyInterval = Number(sEnemy.value);
-    params.itemInterval  = Number(sItem.value);
-    params.playerSpeed   = Number(sSpeed.value);
-    params.maxItems      = Number(sMaxItem.value);
-    params.enemyHPmul    = Number(sEnemyHP.value);
-    params.itemDurMul    = Number(sItemDur.value);
-    params.kbMul         = Number(sKBMul.value);
+    params.enemyInterval=+sEnemy.value; params.itemInterval=+sItem.value; params.playerSpeed=+sSpeed.value;
+    params.maxItems=+sMaxItem.value; params.enemyHPmul=+sEnemyHP.value; params.itemDurMul=+sItemDur.value; params.kbMul=+sKBMul.value;
   }
-  function resetGame(){
-    const w = cv.clientWidth, h = cv.clientHeight;
-    player = { x:w/2, y:h/2, r:18, hp:120, hpMax:120, speed:params.playerSpeed, inv:0 };
-    enemies.length=0; flyingItems.length=0; attachedItems.length=0; arrows.length=0;
+  function resetRuntime(){
+    const w=cv.clientWidth,h=cv.clientHeight;
+    player={x:w/2,y:h/2,r:18,hp:120,hpMax:120,inv:0};
+    enemies=[]; flyingItems=[]; attachedItems=[]; arrows=[];
+    timers={enemy:600,item:300};
+    time=0; lastT=performance.now();
     waveIndex=0; planIndex=0; enemyDirIndex=0; itemDirIndex=0;
-    timers.enemy = 600; timers.item = 300;
-    stats = { playTime:0, enemiesDefeated:0, itemsAttached:0, score:0, combo:1, comboT:0 };
-    time = 0; lastT = performance.now();
-    waveLabel.textContent = WAVES[0].name;
-    scoreLabel.textContent = 'SCORE 0'; comboLabel.textContent = '';
-    spawnItem();
+    stats={playTime:0,enemiesDefeated:0,itemsAttached:0,score:0,combo:1,comboT:0};
+    shake={t:0,mag:0};
+    waveLabel.textContent=WAVES[0].name; scoreLabel.textContent='SCORE 0'; comboLabel.textContent='';
   }
-
-  // ---------- 画面遷移 ----------
   function startGame(){
     applyParamsFromUI();
-    resetGame();
+    resetRuntime();
     title.classList.add('hidden'); over.classList.add('hidden'); clear.classList.add('hidden');
     hud.classList.remove('hidden'); joy.classList.remove('hidden');
-    requestAnimationFrame(()=>{ const r=joy.getBoundingClientRect(); input._cx=r.width/2; input._cy=r.height/2; input._radius=Math.max(30, Math.min(r.width,r.height)*0.38); });
-    state = STATE.PLAY;
+    requestAnimationFrame(()=>layoutJoystick());
+    state=STATE.PLAY;
   }
   function backToTitle(){
     hud.classList.add('hidden'); joy.classList.add('hidden');
     title.classList.remove('hidden'); over.classList.add('hidden'); clear.classList.add('hidden');
-    setHiscoreLine();
-    state = STATE.TITLE;
+    setHiscoreLine(); state=STATE.TITLE;
   }
-  function finishOver(){
-    if (state!==STATE.PLAY) return;
-    state = STATE.OVER;
-    hud.classList.add('hidden'); joy.classList.add('hidden'); over.classList.remove('hidden');
-    beep('dead');
-  }
+  function finishOver(){ if(state!==STATE.PLAY)return; state=STATE.OVER; hud.classList.add('hidden'); joy.classList.add('hidden'); over.classList.remove('hidden'); beep('dead'); }
   function finishClear(){
-    if (state!==STATE.PLAY) return;
-    state = STATE.CLEAR;
-    hud.classList.add('hidden'); joy.classList.add('hidden'); clear.classList.remove('hidden');
-    const newTime = stats.playTime, newKills = stats.enemiesDefeated;
-    let improved = false;
-    if (hiscore.bestTime==null || newTime < hiscore.bestTime){ hiscore.bestTime = newTime; improved=true; }
-    if (newKills > hiscore.bestKills){ hiscore.bestKills = newKills; improved=true; }
-    if (improved){ localStorage.setItem(LS_KEY, JSON.stringify(hiscore)); }
-    clearStats.textContent = `撃破数: ${stats.enemiesDefeated}\nクリア時間: ${(stats.playTime/1000).toFixed(1)}s\n取得アイテム: ${stats.itemsAttached}\nスコア: ${stats.score}\nベスト: ${(hiscore.bestTime/1000).toFixed(1)}s / 撃破 ${hiscore.bestKills}`;
+    if(state!==STATE.PLAY)return; state=STATE.CLEAR; hud.classList.add('hidden'); joy.classList.add('hidden'); clear.classList.remove('hidden');
+    const newTime=stats.playTime,newKills=stats.enemiesDefeated; let improved=false;
+    if(hiscore.bestTime==null||newTime<hiscore.bestTime){ hiscore.bestTime=newTime; improved=true; }
+    if(newKills>hiscore.bestKills){ hiscore.bestKills=newKills; improved=true; }
+    if(improved) localStorage.setItem(LS_KEY,JSON.stringify(hiscore));
+    clearStats.textContent=`撃破数: ${stats.enemiesDefeated}\nクリア時間: ${(stats.playTime/1000).toFixed(1)}s\n取得アイテム: ${stats.itemsAttached}\nスコア: ${stats.score}\nベスト: ${(hiscore.bestTime/1000).toFixed(1)}s / 撃破 ${hiscore.bestKills}`;
     beep('pickup');
   }
 
-  // ---------- シェイク ----------
-  function doShake(mag=6, t=120){
-    if (!optShake.checked) return;
-    shake.mag = Math.max(shake.mag, mag);
-    shake.t = Math.max(shake.t, t);
+  /* ===== スポーン関連 ===== */
+  function addArrow(dir){ const life=600,w=cv.clientWidth,h=cv.clientHeight,pad=6; const [dx,dy]=DIR8[dir%8];
+    let x=(dx>0)?(w-pad):((dx<0)?pad:w/2), y=(dy>0)?(h-pad):((dy<0)?pad:h/2); arrows.push({x,y,dir,life}); }
+  function edgePos(dir){ const w=cv.clientWidth,h=cv.clientHeight,margin=30,[dx,dy]=DIR8[dir%8];
+    let x=(dx>0)?w+margin:(dx<0?-margin:rnd(0,w)); let y=(dy>0)?h+margin:(dy<0?-margin:rnd(0,h));
+    if(dx===0) x=rnd(0,w); if(dy===0) y=rnd(0,h); return {x,y}; }
+  function spawnEnemy(key){
+    const dir=(enemyDirIndex++)%8; addArrow(dir);
+    const p=edgePos(dir), t0=ENEMY_TYPES[key], d=DIFF[difficultySel.value];
+    const hpMul=d.enemyHP*params.enemyHPmul;
+    const t={hp:Math.round(t0.hp*hpMul),spd:Math.round(t0.spd*d.enemySpd),baseR:t0.baseR,color:t0.color,dmg:t0.dmg,type:key};
+    enemies.push({x:p.x,y:p.y,hp:t.hp,hpMax:t.hp,spd:t.spd,baseR:t.baseR,color:t.color,dmg:t.dmg,type:key,phase:'normal',charge:0,dash:0,hitFx:0});
   }
-  function applyShake(){
-    if (shake.t<=0) return {ox:0, oy:0};
-    return {ox:(Math.random()*2-1)*shake.mag, oy:(Math.random()*2-1)*shake.mag};
+  function spawnItem(){
+    if(attachedItems.length+flyingItems.length>=params.maxItems) return;
+    const dir=(itemDirIndex++)%8, p=edgePos(dir);
+    const Tb=ITEM_TYPES[Math.floor(Math.random()*ITEM_TYPES.length)];
+    const T={...Tb,dur:Math.max(1,Math.round(Tb.dur*params.itemDurMul))};
+    const ang=Math.atan2(player.y-p.y,player.x-p.x), speed=120+Math.random()*60;
+    flyingItems.push({x:p.x,y:p.y,vx:Math.cos(ang)*speed,vy:Math.sin(ang)*speed,type:T,dur:T.dur});
+  }
+  function currentWave(){ return WAVES[waveIndex]; }
+  function advanceSpawn(dt){
+    timers.enemy-=dt; const wv=currentWave(), spMul=DIFF[difficultySel.value].spawnMul;
+    if(timers.enemy<=0 && wv && planIndex<wv.plan.length){ spawnEnemy(wv.plan[planIndex++]); timers.enemy+=params.enemyInterval*(1/spMul); }
+    if(wv && planIndex>=wv.plan.length && enemies.length===0){ waveIndex++; planIndex=0; if(waveIndex<WAVES.length) waveLabel.textContent=WAVES[waveIndex].name; else finishClear(); }
+    timers.item-=dt; if(timers.item<=0){ spawnItem(); timers.item+=params.itemInterval; }
   }
 
-  // ---------- 便利関数 ----------
-  function itemRadius(obj){ const T=obj.type; const m=obj.maxDur||T.dur; const ratio=Math.max(0,Math.min(1,obj.dur/m)); return T.baseR*(0.6+0.4*ratio); }
-  function attachedWorldPos(ai){ return { x: player.x + ai.offX, y: player.y + ai.offY }; }
-  function enemyRadius(e){ const ratio = Math.max(0, Math.min(1, e.hp/e.hpMax)); return e.baseR * (0.4 + 0.6*ratio); }
+  /* ===== シェイク ===== */
+  function doShake(mag=6,t=120){ if(!optShake.checked)return; shake.mag=Math.max(shake.mag,mag); shake.t=Math.max(shake.t,t); }
+  function getShake(){ return (shake.t>0)?{ox:(Math.random()*2-1)*shake.mag,oy:(Math.random()*2-1)*shake.mag}:{ox:0,oy:0}; }
 
-  // ---------- 更新 ----------
+  /* ===== 半径/描画補助 ===== */
+  function itemRadius(obj){ const m=obj.maxDur||obj.type.dur; const ratio=Math.max(0,Math.min(1,obj.dur/m)); return obj.type.baseR*(0.6+0.4*ratio); }
+  function enemyRadius(e){ const ratio=Math.max(0,Math.min(1,e.hp/e.hpMax)); return e.baseR*(0.4+0.6*ratio); }
+  function attachedWorldPos(ai){ return {x:player.x+ai.offX,y:player.y+ai.offY}; }
+
+  /* ===== 更新 ===== */
   function update(dt){
-    time += dt; stats.playTime += dt;
-
-    // キーボード→スティック代替
-    if(!input._active){
-      let x=0,y=0;
-      if (keys.has('arrowleft')||keys.has('a')) x-=1;
-      if (keys.has('arrowright')||keys.has('d')) x+=1;
-      if (keys.has('arrowup')||keys.has('w')) y-=1;
-      if (keys.has('arrowdown')||keys.has('s')) y+=1;
-      const len=Math.hypot(x,y); input.x=len?x/len:0; input.y=len?y/len:0;
-    }
-
-    // コンボ減衰
-    stats.comboT -= dt; if (stats.comboT<=0){ stats.combo=1; comboLabel.textContent=''; }
+    time+=dt; stats.playTime+=dt;
+    if(!input.active){ let x=0,y=0; if(keys.has('arrowleft')||keys.has('a'))x--; if(keys.has('arrowright')||keys.has('d'))x++; if(keys.has('arrowup')||keys.has('w'))y--; if(keys.has('arrowdown')||keys.has('s'))y++;
+      const len=Math.hypot(x,y); input.x=len?x/len:0; input.y=len?y/len:0; }
+    stats.comboT-=dt; if(stats.comboT<=0){ stats.combo=1; comboLabel.textContent=''; }
 
     // プレイヤー移動
-    const speed = params.playerSpeed;
-    player.x = clamp(player.x + input.x * speed * dt/1000, player.r+4, cv.clientWidth - player.r - 4);
-    player.y = clamp(player.y + input.y * speed * dt/1000, player.r+4, cv.clientHeight - player.r - 4);
-    if (player.inv>0) player.inv -= dt;
+    const sp=+params.playerSpeed; player.x=clamp(player.x+input.x*sp*dt/1000, player.r+4, cv.clientWidth-player.r-4);
+    player.y=clamp(player.y+input.y*sp*dt/1000, player.r+4, cv.clientHeight-player.r-4);
+    if(player.inv>0) player.inv-=dt;
 
-    const w = cv.clientWidth, h = cv.clientHeight;
-
-    // 飛来アイテム（マグネット吸着）
-    for (let i=flyingItems.length-1;i>=0;i--){
-      const it = flyingItems[i];
-      const dx = player.x - it.x, dy = player.y - it.y;
-      const d = Math.hypot(dx,dy);
-      if (d<120){ const ax=(dx/d)*60, ay=(dy/d)*60; it.vx += ax * dt/1000; it.vy += ay * dt/1000; }
-      it.x += it.vx * dt/1000; it.y += it.vy * dt/1000;
-
-      const rad = itemRadius(it);
-      let touched = hit(it.x,it.y,rad, player.x,player.y,player.r);
-      if (!touched){
-        for (const ai of attachedItems){
-          const pos = attachedWorldPos(ai);
-          if (hit(it.x,it.y,rad, pos.x,pos.y, itemRadius(ai))){ touched = true; break; }
-        }
+    // 飛来アイテム（吸着）
+    for(let i=flyingItems.length-1;i>=0;i--){
+      const it=flyingItems[i], dx=player.x-it.x, dy=player.y-it.y, d=Math.hypot(dx,dy);
+      if(d<120){ it.vx+=(dx/d)*60*dt/1000; it.vy+=(dy/d)*60*dt/1000; }
+      it.x+=it.vx*dt/1000; it.y+=it.vy*dt/1000;
+      const rad=itemRadius(it);
+      let touched=hit(it.x,it.y,rad, player.x,player.y,player.r);
+      if(!touched){ for(const ai of attachedItems){ const p=attachedWorldPos(ai); if(hit(it.x,it.y,rad, p.x,p.y,itemRadius(ai))){ touched=true; break; } }
       }
-      if (touched){ // 接着上限なし
-        const ang = Math.atan2(it.y - player.y, it.x - player.x);
-        const offLen = player.r + rad + 2;
-        attachedItems.push({ type:it.type, dur:it.dur, maxDur:it.type.dur, baseR:it.type.baseR, offX: Math.cos(ang)*offLen, offY: Math.sin(ang)*offLen, hitFx:0 });
-        stats.itemsAttached++; beep('pickup');
-        flyingItems.splice(i,1);
-        continue;
+      if(touched){ // 接着上限なし
+        const ang=Math.atan2(it.y-player.y,it.x-player.x), off=player.r+rad+2;
+        attachedItems.push({type:it.type,dur:it.dur,maxDur:it.type.dur,offX:Math.cos(ang)*off,offY:Math.sin(ang)*off});
+        stats.itemsAttached++; beep('pickup'); flyingItems.splice(i,1); continue;
       }
-      if (it.x<-140||it.y<-140||it.x>w+140||it.y>h+140) flyingItems.splice(i,1);
+      const w=cv.clientWidth,h=cv.clientHeight; if(it.x<-160||it.y<-160||it.x>w+160||it.y>h+160) flyingItems.splice(i,1);
     }
 
-    // 敵
-    for (let i=enemies.length-1;i>=0;i--){
-      const e = enemies[i];
-      // BOSS: 溜め→突進
-      if (e.type==='BOSS'){
-        if (e.phase==='normal'){
-          e.charge -= dt;
-          if (e.charge<=0){ e.phase='charge'; e.charge=600; }
-        }else if (e.phase==='charge'){
-          e.charge -= dt;
-          if (e.charge<=0){ e.phase='dash'; e.dash=400; e.dashAng = Math.atan2(player.y - e.y, player.x - e.x); }
-        }else if (e.phase==='dash'){
-          e.dash -= dt; if (e.dash<=0){ e.phase='normal'; e.charge = 1800; }
-        }
+    // 敵更新
+    for(let i=enemies.length-1;i>=0;i--){
+      const e=enemies[i];
+      // ボス簡易AI
+      if(e.type==='BOSS'){
+        if(e.phase==='normal'){ e.charge-=dt; if(e.charge<=0){ e.phase='charge'; e.charge=600; } }
+        else if(e.phase==='charge'){ e.charge-=dt; if(e.charge<=0){ e.phase='dash'; e.dash=400; e.dashAng=Math.atan2(player.y-e.y,player.x-e.x); } }
+        else if(e.phase==='dash'){ e.dash-=dt; if(e.dash<=0){ e.phase='normal'; e.charge=1800; } }
       }
-      // 追跡
-      let ang = Math.atan2(player.y - e.y, player.x - e.x);
-      let spd = e.spd;
-      if (e.type==='BOSS' && e.phase==='dash'){ ang = e.dashAng; spd = e.spd*2.0; }
-      if (e.type==='BOSS' && e.phase==='charge'){ spd = e.spd*0.3; }
-      e.x += Math.cos(ang) * spd * dt/1000;
-      e.y += Math.sin(ang) * spd * dt/1000;
-      if (e.hitFx>0) e.hitFx -= dt;
+      let ang=Math.atan2(player.y-e.y,player.x-e.x), spd=e.spd;
+      if(e.type==='BOSS' && e.phase==='dash'){ ang=e.dashAng; spd=e.spd*2.0; }
+      if(e.type==='BOSS' && e.phase==='charge'){ spd=e.spd*0.3; }
+      e.x+=Math.cos(ang)*spd*dt/1000; e.y+=Math.sin(ang)*spd*dt/1000; if(e.hitFx>0)e.hitFx-=dt;
 
-      const eR = enemyRadius(e);
+      const eR=enemyRadius(e);
       // 本体ヒット
-      if (hit(e.x,e.y,eR, player.x,player.y,player.r)){
-        if (player.inv<=0){
-          player.hp -= e.dmg; player.inv = 700;
-          if (player.hp<=0){ player.hp=0; finishOver(); return; }
-        }
-        e.x -= Math.cos(ang)*8; e.y -= Math.sin(ang)*8;
+      if(hit(e.x,e.y,eR, player.x,player.y,player.r)){
+        if(player.inv<=0){ player.hp-=e.dmg; player.inv=700; if(player.hp<=0){ player.hp=0; finishOver(); return; } }
+        e.x-=Math.cos(ang)*8; e.y-=Math.sin(ang)*8;
       }
 
-      // 接着アイテムでヒット：★「先にノックバック→その後ダメージ」
-      for (let j=attachedItems.length-1;j>=0;j--){
-        const ai = attachedItems[j];
-        const pos = attachedWorldPos(ai);
-        if (hit(e.x,e.y,eR, pos.x,pos.y,itemRadius(ai))){
-          const kb = ai.type.kb * params.kbMul;          // ← KB倍率
-          const ang2 = Math.atan2(e.y - pos.y, e.x - pos.x);
-          // 先に吹き飛ばす
-          e.x += Math.cos(ang2)*kb; e.y += Math.sin(ang2)*kb;
-          if (kb>=30) doShake(6,120);
-
-          // その後でダメージ処理
-          e.hp -= ai.type.atk;
-          e.hitFx = 120; beep('hit');
-          ai.dur -= 1;
-          if (ai.dur<=0) attachedItems.splice(j,1);
-
-          // スコア簡易
-          stats.comboT = 1200; stats.combo = Math.min(2.0, stats.combo + 0.1);
-          comboLabel.textContent = (stats.combo>1.01) ? `COMBO x${stats.combo.toFixed(1)}` : '';
-          if (e.hp<=0){
-            enemies.splice(i,1); stats.enemiesDefeated++;
-            const gain = 10 * (ai.type.atk/8) * stats.combo;
-            stats.score += Math.round(gain);
-            scoreLabel.textContent = `SCORE ${stats.score}`;
-            break;
-          }
+      // アイテムヒット：ノックバック → ダメージ
+      for(let j=attachedItems.length-1;j>=0;j--){
+        const ai=attachedItems[j], p=attachedWorldPos(ai), ar=itemRadius(ai);
+        if(hit(e.x,e.y,eR, p.x,p.y,ar)){
+          const kb=(ai.type.kb*params.kbMul);
+          const ang2=Math.atan2(e.y-p.y,e.x-p.x);
+          e.x+=Math.cos(ang2)*kb; e.y+=Math.sin(ang2)*kb; if(kb>=30) doShake(6,120); // 先にKB
+          e.hp-=ai.type.atk; e.hitFx=120; beep('hit'); // 後でダメージ
+          ai.dur-=1; if(ai.dur<=0) attachedItems.splice(j,1);
+          stats.comboT=1200; stats.combo=Math.min(2.0,stats.combo+0.1);
+          comboLabel.textContent=(stats.combo>1.01)?`COMBO x${stats.combo.toFixed(1)}`:'';
+          if(e.hp<=0){ enemies.splice(i,1); stats.enemiesDefeated++; const gain=10*(ai.type.atk/8)*stats.combo; stats.score+=Math.round(gain); scoreLabel.textContent=`SCORE ${stats.score}`; break; }
         }
       }
     }
 
     // 予告矢印寿命
-    for (let k=arrows.length-1;k>=0;k--){ const a=arrows[k]; a.life-=dt; if (a.life<=0) arrows.splice(k,1); }
+    for(let k=arrows.length-1;k>=0;k--){ arrows[k].life-=dt; if(arrows[k].life<=0) arrows.splice(k,1); }
 
-    // スポーン進行
+    // スポーン
     advanceSpawn(dt);
 
     // HUD
-    lifeFill.style.width = `${(player.hp/player.hpMax)*100}%`;
+    lifeFill.style.width=`${(player.hp/player.hpMax)*100}%`;
   }
 
-  // ---------- 描画 ----------
+  /* ===== 描画 ===== */
   function draw(){
-    const w=cv.clientWidth,h=cv.clientHeight;
-    const shakeOff = applyShake();
-    ctx.save(); ctx.translate(shakeOff.ox||0, shakeOff.oy||0);
+    const w=cv.clientWidth,h=cv.clientHeight, s=getShake(); ctx.save(); ctx.translate(s.ox,s.oy);
+    if(grassCan) ctx.drawImage(grassCan,0,0,w,h);
 
-    // 草原
-    if (grassCan) ctx.drawImage(grassCan, 0, 0, w, h);
-
-    // 予告矢印
-    for (const a of arrows){
-      const alpha = Math.max(0, Math.min(1, a.life/600));
-      ctx.save(); ctx.globalAlpha = alpha;
-      ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#000000'; ctx.lineWidth = 2;
-      ctx.translate(a.x, a.y);
-      const angle = Math.atan2(DIR8[a.dir][1], DIR8[a.dir][0]);
-      ctx.rotate(angle);
-      ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-12,-8); ctx.lineTo(-12,8); ctx.closePath();
-      ctx.fill(); ctx.stroke();
-      ctx.restore();
-    }
+    // 矢印
+    for(const a of arrows){ const alpha=Math.max(0,Math.min(1,a.life/600));
+      ctx.save(); ctx.globalAlpha=alpha; ctx.fillStyle='#fff'; ctx.strokeStyle='#000'; ctx.lineWidth=2; ctx.translate(a.x,a.y);
+      const angle=Math.atan2(DIR8[a.dir][1],DIR8[a.dir][0]); ctx.rotate(angle);
+      ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-12,-8); ctx.lineTo(-12,8); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore(); }
 
     // 飛来アイテム
-    for (const it of flyingItems){ drawItem(it.x,it.y, it.type, it.dur, it.type.dur); }
+    for(const it of flyingItems) drawItem(it.x,it.y,it.type,it.dur,it.type.dur);
     // 接着アイテム
-    for (const ai of attachedItems){
-      const p = attachedWorldPos(ai);
-      drawItem(p.x,p.y, ai.type, ai.dur, ai.maxDur);
-      ctx.strokeStyle = '#12301c'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(player.x,player.y); ctx.lineTo(p.x,p.y); ctx.stroke();
-    }
+    for(const ai of attachedItems){ const p=attachedWorldPos(ai); drawItem(p.x,p.y,ai.type,ai.dur,ai.maxDur);
+      ctx.strokeStyle='#12301c'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(player.x,player.y); ctx.lineTo(p.x,p.y); ctx.stroke(); }
 
-    // 敵（HPに応じて縮小）
-    for (const e of enemies){
-      const r = enemyRadius(e);
-      ctx.save();
-      if (e.type==='BOSS' && e.phase==='charge'){
-        const s = 0.5 + 0.5*Math.abs(Math.sin(time/80));
-        ctx.globalAlpha = s;
-      }
-      if (e.hitFx>0){
-        const t = (e.hitFx/120);
-        ctx.shadowColor = `rgba(255,255,255,${0.5*t})`;
-        ctx.shadowBlur = 16*t;
-      }
-      ctx.fillStyle = e.color; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.arc(e.x,e.y,r,0,Math.PI*2); ctx.fill(); ctx.stroke();
-
-      // HPバー
-      const bw = Math.max(20, r*1.8), bh=6;
-      ctx.fillStyle='rgba(0,0,0,0.35)'; ctx.fillRect(e.x-bw/2, e.y-r-14, bw, bh);
-      const ratio = Math.max(0, Math.min(1, e.hp/e.hpMax));
-      ctx.fillStyle='#22c55e'; ctx.fillRect(e.x-bw/2, e.y-r-14, bw*ratio, bh);
+    // 敵
+    for(const e of enemies){
+      const r=enemyRadius(e);
+      ctx.save(); if(e.type==='BOSS'&&e.phase==='charge'){ const g=0.5+0.5*Math.abs(Math.sin(time/80)); ctx.globalAlpha=g; }
+      if(e.hitFx>0){ const t=(e.hitFx/120); ctx.shadowColor=`rgba(255,255,255,${0.5*t})`; ctx.shadowBlur=16*t; }
+      ctx.fillStyle=e.color; ctx.strokeStyle='#fff'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(e.x,e.y,r,0,Math.PI*2); ctx.fill(); ctx.stroke();
+      const bw=Math.max(20,r*1.8), bh=6, ratio=Math.max(0,Math.min(1,e.hp/e.hpMax));
+      ctx.fillStyle='rgba(0,0,0,0.35)'; ctx.fillRect(e.x-bw/2,e.y-r-14,bw,bh); ctx.fillStyle='#22c55e'; ctx.fillRect(e.x-bw/2,e.y-r-14,bw*ratio,bh);
       ctx.restore();
     }
 
     // プレイヤー
-    ctx.save();
-    if (player.inv>0){ ctx.globalAlpha = 0.35 + 0.65*Math.abs(Math.sin(time/100)); }
-    ctx.fillStyle = '#60a5fa'; ctx.strokeStyle = '#0a1b12'; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(player.x,player.y,player.r,0,Math.PI*2); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#1f2937'; ctx.beginPath(); ctx.arc(player.x,player.y,6,0,Math.PI*2); ctx.fill();
-    ctx.restore();
+    ctx.save(); if(player.inv>0) ctx.globalAlpha=0.35+0.65*Math.abs(Math.sin(time/100));
+    ctx.fillStyle='#60a5fa'; ctx.strokeStyle='#0a1b12'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(player.x,player.y,player.r,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#1f2937'; ctx.beginPath(); ctx.arc(player.x,player.y,6,0,Math.PI*2); ctx.fill(); ctx.restore();
 
-    // 右上WAVEラベル
-    ctx.fillStyle='rgba(0,0,0,0.35)'; ctx.fillRect(w-180, 8, 172, 28);
+    // 右上WAVE表示
+    ctx.fillStyle='rgba(0,0,0,0.35)'; ctx.fillRect(w-180,8,172,28);
     ctx.fillStyle='#e6edf3'; ctx.font='bold 14px system-ui, sans-serif';
-    const label = currentWave() ? currentWave().name : (state===STATE.CLEAR?'CLEAR':'FIN');
-    ctx.fillText(label, w-170, 26);
+    const label=currentWave()?currentWave().name:(state===STATE.CLEAR?'CLEAR':'FIN'); ctx.fillText(label,w-170,26);
 
     ctx.restore();
   }
 
-  function drawItem(x,y, T_or_ai, dur, maxDur){
-    const T = T_or_ai.type ? T_or_ai.type : T_or_ai;
-    const m = T_or_ai.maxDur || T.dur;
-    const ratio = Math.max(0, Math.min(1, dur/m));
-    const r = T.baseR * (0.6+0.4*ratio);
-    ctx.save(); ctx.translate(x,y);
-    ctx.shadowColor = T.color; ctx.shadowBlur = 12;
-    ctx.fillStyle = T.color; ctx.strokeStyle='#000000'; ctx.lineWidth=3;
-
-    if (T.shape==='circle'){
-      ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fill(); ctx.stroke();
-    }else if (T.shape==='tri'){
-      ctx.beginPath(); ctx.moveTo(0,-r); ctx.lineTo(r*0.92,r*0.66); ctx.lineTo(-r*0.92,r*0.66); ctx.closePath(); ctx.fill(); ctx.stroke();
-    }else{ // 縦長ロング矩形（wh: [幅, 高さ]）
-      const wh = T.wh || [0.8,3.8];
-      const w = r*wh[0], h = r*wh[1], rr = Math.max(2, h/4);
-      roundRect(-w/2,-h/2,w,h,rr); ctx.fill(); ctx.stroke();
-    }
+  function drawItem(x,y,T,dur,maxDur){
+    const ratio=Math.max(0,Math.min(1,dur/maxDur)), r=T.baseR*(0.6+0.4*ratio);
+    ctx.save(); ctx.translate(x,y); ctx.shadowColor=T.color; ctx.shadowBlur=12; ctx.fillStyle=T.color; ctx.strokeStyle='#000'; ctx.lineWidth=3;
+    if(T.shape==='circle'){ ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fill(); ctx.stroke(); }
+    else if(T.shape==='tri'){ ctx.beginPath(); ctx.moveTo(0,-r); ctx.lineTo(r*0.92,r*0.66); ctx.lineTo(-r*0.92,r*0.66); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+    else{ const w=r*(T.wh?T.wh[0]:0.7), h=r*(T.wh?T.wh[1]:4.4), rr=Math.max(2,h/4);
+      ctx.beginPath(); ctx.moveTo(-w/2+rr,-h/2); ctx.lineTo(w/2-rr,-h/2);
+      ctx.quadraticCurveTo(w/2,-h/2,w/2,-h/2+rr); ctx.lineTo(w/2,h/2-rr);
+      ctx.quadraticCurveTo(w/2,h/2,w/2-rr,h/2); ctx.lineTo(-w/2+rr,h/2);
+      ctx.quadraticCurveTo(-w/2,h/2,-w/2,h/2-rr); ctx.lineTo(-w/2,-h/2+rr);
+      ctx.quadraticCurveTo(-w/2,-h/2,-w/2+rr,-h/2); ctx.closePath(); ctx.fill(); ctx.stroke(); }
     ctx.restore();
   }
-  function roundRect(x,y,w,h,r){
-    ctx.beginPath();
-    ctx.moveTo(x+r,y);
-    ctx.lineTo(x+w-r,y);
-    ctx.quadraticCurveTo(x+w,y,x+w,y+r);
-    ctx.lineTo(x+w,y+h-r);
-    ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
-    ctx.lineTo(x+r,y+h);
-    ctx.quadraticCurveTo(x,y+h,x,y+h-r);
-    ctx.lineTo(x,y+r);
-    ctx.quadraticCurveTo(x,y,x+r,y);
-    ctx.closePath();
-  }
 
-  // ---------- ループ ----------
-  let enemies=[], flyingItems=[], attachedItems=[];
-  let time=0, lastT=performance.now();
-  let waveIndex=0, planIndex=0, enemyDirIndex=0, itemDirIndex=0;
-  let arrows=[], timers={enemy:0,item:0};
-  let stats, shake, player;
-
+  /* ===== ループ ===== */
   function tick(now){
-    const dt = Math.max(0, Math.min(50, now - lastT));
-    if (shake && shake.t>0){ shake.t-=dt; if (shake.t<=0){ shake.t=0; shake.mag=0; } }
-    if (state===STATE.PLAY){ update(dt); draw(); }
-    else { if (grassCan) ctx.drawImage(grassCan, 0, 0, cv.clientWidth, cv.clientHeight); }
-    lastT = now; requestAnimationFrame(tick);
+    const dt=Math.max(0,Math.min(50, now-(lastT||now))); lastT=now;
+    if(shake && shake.t>0){ shake.t-=dt; if(shake.t<=0){ shake.t=0; shake.mag=0; } }
+    if(state===STATE.PLAY){ update(dt); draw(); }
+    else { if(grassCan) ctx.drawImage(grassCan,0,0,cv.clientWidth,cv.clientHeight); }
+    requestAnimationFrame(tick);
   }
   requestAnimationFrame(tick);
 
-  // ---------- ボタン ----------
+  /* ===== ボタン ===== */
   btnStart.addEventListener('click', startGame);
-  btnHow.addEventListener('click', ()=>{
-    alert([
-      '■ルール',
-      '・アイテム（◯△▭）は接着上限なし。画面上の総アイテム数はスライダーで 3〜8 を設定。',
-      '・ノックバック：◯=中 / △=大(強) / ▭=弱。さらに「ノックバック倍率」スライダーで全体を調整可能。',
-      '・接触時は「ノックバックしてからダメージ」が入ります。',
-      '・敵はダメージで縮小、HP0で消滅。敵HP倍率・アイテム耐久倍率はスライダーで変更。',
-      '・敵は全方向から順番に出現。ボスはタメ（白点滅）→突進。',
-      '',
-      '■操作',
-      '・右下の仮想スティックで移動（PCは矢印/WASD）'
-    ].join('\n'));
-  });
+  btnHow.addEventListener('click', ()=>alert([
+    '■ルール',
+    '・アイテム（◯△▭）は接着上限なし。画面上の総数はスライダーで 3〜8 を設定',
+    '・ノックバック：◯=中 / △=大(強) / ▭=弱（さらに倍率スライダーで全体調整）',
+    '・当たり順は「ノックバック → ダメージ」',
+    '・敵はダメージで縮小、HP0で消滅。敵HP倍率・アイテム耐久倍率は調整可',
+    '■操作：右下のスティック（PCは矢印/WASD）'
+  ].join('\n')));
   btnRetry1.addEventListener('click', backToTitle);
   btnRetry2.addEventListener('click', backToTitle);
   btnRestart1.addEventListener('click', startGame);
   btnRestart2.addEventListener('click', startGame);
 
-  // ---------- スクロール誤操作防止 ----------
-  document.addEventListener('touchmove', (e)=>{ if (state===STATE.PLAY) e.preventDefault(); }, {passive:false});
+  /* ===== タイトル時の背景表示 & 誤スクロール抑止 ===== */
+  document.addEventListener('touchmove',e=>{ if(state===STATE.PLAY) e.preventDefault(); },{passive:false});
+
+  /* ===== ゲーム実装補完（初回スポーン呼び水） ===== */
+  // ここから下は startGame() 後に使う関数を定義（変数は上位スコープのものを使用）
+  function getKBMul(){ return +params.kbMul; }
+  function doArrow(dir){ addArrow(dir); }
+
+  // 進行：advanceSpawn の中で利用（すでに定義済み）
+  // ここまで
+
 })();
 </script>
 </body>
