@@ -75,7 +75,11 @@ state=STATE.PLAY;
 // 開始直後に1つ飛来
 spawnItemFromEdge(true);
 
-}catch(e){ console.error(e); } } window.__startGame=onStart; (function bindStart(){ const btn=document.getElementById('startBtn'); if(!btn) return; ['click','touchend','pointerup'].forEach(evt=>btn.addEventListener(evt,(ev)=>{ ev.preventDefault(); onStart(); },{passive:false})); })();
+}catch(e){ console.error(e); } } window.__startGame=onStart;
+
+// --- Pixel 9 XL / Opera 対策：複数経路で起動を保証 --- function strongBindStart(){ const btn=document.getElementById('startBtn'); if(!btn) return; btn.onclick = (ev)=>{ ev&&ev.preventDefault(); onStart(); }; ['click','touchstart','touchend','pointerup'].forEach(evt=>{ btn.addEventListener(evt,(ev)=>{ try{ ev.preventDefault(); onStart(); }catch(e){ console.error(e); } }, {passive:false}); }); ['click','touchstart'].forEach(evt=>{ document.addEventListener(evt,(ev)=>{ const t=ev.target; if(t && (t.id==='startBtn' || (t.closest && t.closest('#startBtn')))){ ev.preventDefault(); onStart(); } }, true); }); } strongBindStart(); new MutationObserver(strongBindStart).observe(document.body,{childList:true,subtree:true});
+
+document.addEventListener('keydown',(e)=>{ if(e.key==='Enter' && (document.getElementById('title')?.style.display!=='none')) onStart(); }); (function bindStart(){ const btn=document.getElementById('startBtn'); if(!btn) return; ['click','touchend','pointerup'].forEach(evt=>btn.addEventListener(evt,(ev)=>{ ev.preventDefault(); onStart(); },{passive:false})); })();
 
 document.addEventListener('keydown',(e)=>{ if(e.key==='Enter' && document.getElementById('title')?.style.display!=='none') onStart(); });
 
