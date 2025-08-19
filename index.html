@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-<title>Stick-On Battle — 安定版</title>
+<title>Stick-On Battle — チェーン接着＆KB×1〜10</title>
 <style>
   :root{--panel:#0f1520;--ink:#e6edf3;--muted:#98a2b3}
   *{box-sizing:border-box}
@@ -20,7 +20,7 @@
   .btn.secondary{background:#1f2937}
   .btn:active{transform:translateY(1px)}
   label{display:flex;gap:10px;align-items:center;justify-content:space-between;background:#0b1220;border:1px solid #1f2937;border-radius:12px;padding:10px 12px}
-  input[type="range"]{width:220px} select,input[type="checkbox"]{accent-color:#60a5fa}
+  input[type="range"]{width:240px} select,input[type="checkbox"]{accent-color:#60a5fa}
   .hidden{display:none !important}
 
   /* HUD */
@@ -58,11 +58,12 @@
   <!-- タイトル -->
   <div id="title" class="overlay">
     <div class="card grid">
-      <h1>Stick-On Battle — 安定版</h1>
+      <h1>Stick-On Battle — チェーン接着＆KB×1〜10</h1>
       <p class="muted">
         ◯△▭をくっつけて敵にぶつけるだけ。<br>
-        ノックバック：◯=中 / △=大(強) / ▭=弱。接着上限なし。<br>
-        背景は草原（オフスクリーン）でチラつき無し。長方形は細い縦長。
+        ノックバック倍率は<strong>1〜10倍</strong>で調整可能。<br>
+        アイテムは<strong>アイテムにも接続</strong>できます（チェーン状に接着）。<br>
+        縁取り：<b>敵=黒線 / アイテム=白線 / プレイヤー=黒線</b>。
       </p>
       <div class="grid">
         <label>難易度
@@ -85,7 +86,7 @@
           <input id="sItemDur" type="range" min="0.5" max="3.0" step="0.1" value="1.0">
         </label>
         <label>ノックバック倍率 <span><output id="oKBMul">1.0</output> x</span>
-          <input id="sKBMul" type="range" min="0.3" max="2.5" step="0.1" value="1.0">
+          <input id="sKBMul" type="range" min="1" max="10" step="0.1" value="1.0">
         </label>
         <label>敵の出現間隔 <span><output id="oEnemy">900</output> ms</span>
           <input id="sEnemy" type="range" min="250" max="1600" step="50" value="900">
@@ -210,14 +211,18 @@
   const sItemDur = document.getElementById('sItemDur'), oItemDur = document.getElementById('oItemDur');
   const sKBMul   = document.getElementById('sKBMul') , oKBMul   = document.getElementById('oKBMul');
 
-  const hiscoreLine = document.getElementById('hiscoreLine');
   const clearStats = document.getElementById('clearStats');
+  const hiscoreLine = document.getElementById('hiscoreLine');
 
   /* ===== スライダー表示同期 ===== */
   const bindRange = (r, o, f=(v)=>v) => { const sync=()=>o.textContent=f(r.value); r.addEventListener('input',sync,{passive:true}); sync(); };
-  bindRange(sEnemy,oEnemy); bindRange(sItem,oItem); bindRange(sSpeed,oSpeed);
-  bindRange(sMaxItem,oMaxItem); bindRange(sEnemyHP,oEnemyHP,v=>(+v).toFixed(1));
-  bindRange(sItemDur,oItemDur,v=>(+v).toFixed(1)); bindRange(sKBMul,oKBMul,v=>(+v).toFixed(1));
+  bindRange(sEnemy,oEnemy);
+  bindRange(sItem,oItem);
+  bindRange(sSpeed,oSpeed);
+  bindRange(sMaxItem,oMaxItem);
+  bindRange(sEnemyHP,oEnemyHP,v=>(+v).toFixed(1));
+  bindRange(sItemDur,oItemDur,v=>(+v).toFixed(1));
+  bindRange(sKBMul,oKBMul,v=>(+v).toFixed(1));
 
   /* ===== サウンド ===== */
   let audioCtx=null;
@@ -258,7 +263,7 @@
   const ITEM_TYPES=[
     {k:'CIR',shape:'circle', atk:8,  dur:8, baseR:18, color:'#60a5fa', kb:28},
     {k:'TRI',shape:'tri',    atk:16, dur:5, baseR:20, color:'#ff80ab', kb:48},
-    {k:'REC',shape:'rect',   atk:12, dur:3, baseR:15, color:'#ffd166', kb: 8, wh:[0.7,4.4]}, // 細い縦長
+    {k:'REC',shape:'rect',   atk:12, dur:3, baseR:15, color:'#ffd166', kb: 8, wh:[0.7,4.8]}, // さらに縦長
   ];
   const ENEMY_TYPES={
     A:{ hp:12,  dmg:10,  spd:70,  baseR:14, color:'#9b59b6'},
@@ -284,13 +289,14 @@
 
   // パラメータ（UIから反映）
   const params={enemyInterval:900,itemInterval:1100,playerSpeed:260,maxItems:5,enemyHPmul:1.0,itemDurMul:1.0,kbMul:1.0};
+
   // ランタイム
   let player, enemies, flyingItems, attachedItems, arrows, timers, time, lastT, waveIndex, planIndex, enemyDirIndex, itemDirIndex, stats, shake;
 
   // ハイスコア
-  const LS_KEY='stickon_hiscore_stable';
+  const LS_KEY='stickon_hiscore_chain_kb10';
   const hiscore=JSON.parse(localStorage.getItem(LS_KEY)||'{"bestTime":null,"bestKills":0}');
-  function setHiscoreLine(){ const l=document.getElementById('hiscoreLine'); l.textContent=(hiscore.bestTime!=null)?`ベスト：${(hiscore.bestTime/1000).toFixed(1)}s / 撃破 ${hiscore.bestKills}`:'ベスト：未記録'; }
+  function setHiscoreLine(){ hiscoreLine.textContent=(hiscore.bestTime!=null)?`ベスト：${(hiscore.bestTime/1000).toFixed(1)}s / 撃破 ${hiscore.bestKills}`:'ベスト：未記録'; }
   setHiscoreLine();
 
   /* ===== 初期化/開始/終了 ===== */
@@ -366,10 +372,16 @@
   function doShake(mag=6,t=120){ if(!optShake.checked)return; shake.mag=Math.max(shake.mag,mag); shake.t=Math.max(shake.t,t); }
   function getShake(){ return (shake.t>0)?{ox:(Math.random()*2-1)*shake.mag,oy:(Math.random()*2-1)*shake.mag}:{ox:0,oy:0}; }
 
-  /* ===== 半径/描画補助 ===== */
+  /* ===== 半径/座標（チェーン対応） ===== */
   function itemRadius(obj){ const m=obj.maxDur||obj.type.dur; const ratio=Math.max(0,Math.min(1,obj.dur/m)); return obj.type.baseR*(0.6+0.4*ratio); }
   function enemyRadius(e){ const ratio=Math.max(0,Math.min(1,e.hp/e.hpMax)); return e.baseR*(0.4+0.6*ratio); }
-  function attachedWorldPos(ai){ return {x:player.x+ai.offX,y:player.y+ai.offY}; }
+
+  // 親が player か item かで再帰的に世界座標を算出
+  function worldPos(node){
+    if(node.parent==='player') return {x:player.x+node.offX, y:player.y+node.offY};
+    const p = worldPos(node.parent);
+    return {x:p.x + node.offX, y:p.y + node.offY};
+  }
 
   /* ===== 更新 ===== */
   function update(dt){
@@ -388,15 +400,27 @@
       const it=flyingItems[i], dx=player.x-it.x, dy=player.y-it.y, d=Math.hypot(dx,dy);
       if(d<120){ it.vx+=(dx/d)*60*dt/1000; it.vy+=(dy/d)*60*dt/1000; }
       it.x+=it.vx*dt/1000; it.y+=it.vy*dt/1000;
+
+      // 接触判定：プレイヤー or 既存の接着アイテム（チェーン）
       const rad=itemRadius(it);
-      let touched=hit(it.x,it.y,rad, player.x,player.y,player.r);
-      if(!touched){ for(const ai of attachedItems){ const p=attachedWorldPos(ai); if(hit(it.x,it.y,rad, p.x,p.y,itemRadius(ai))){ touched=true; break; } }
-      }
-      if(touched){ // 接着上限なし
+      // 1) プレイヤー
+      if(hit(it.x,it.y,rad, player.x,player.y,player.r)){
         const ang=Math.atan2(it.y-player.y,it.x-player.x), off=player.r+rad+2;
-        attachedItems.push({type:it.type,dur:it.dur,maxDur:it.type.dur,offX:Math.cos(ang)*off,offY:Math.sin(ang)*off});
+        attachedItems.push({type:it.type,dur:it.dur,maxDur:it.type.dur,parent:'player',offX:Math.cos(ang)*off,offY:Math.sin(ang)*off});
         stats.itemsAttached++; beep('pickup'); flyingItems.splice(i,1); continue;
       }
+      // 2) 既存の付着アイテム（親＝そのアイテム）に接続
+      let connected=false;
+      for(const parentAI of attachedItems){
+        const p = worldPos(parentAI);
+        if(hit(it.x,it.y,rad, p.x,p.y,itemRadius(parentAI))){
+          const ang=Math.atan2(it.y-p.y,it.x-p.x), off=itemRadius(parentAI)+rad+2;
+          attachedItems.push({type:it.type,dur:it.dur,maxDur:it.type.dur,parent:parentAI,offX:Math.cos(ang)*off,offY:Math.sin(ang)*off});
+          stats.itemsAttached++; beep('pickup'); flyingItems.splice(i,1); connected=true; break;
+        }
+      }
+      if(connected) continue;
+
       const w=cv.clientWidth,h=cv.clientHeight; if(it.x<-160||it.y<-160||it.x>w+160||it.y>h+160) flyingItems.splice(i,1);
     }
 
@@ -421,9 +445,9 @@
         e.x-=Math.cos(ang)*8; e.y-=Math.sin(ang)*8;
       }
 
-      // アイテムヒット：ノックバック → ダメージ
+      // アイテムヒット：ノックバック → ダメージ（チェーン上の全アイテム）
       for(let j=attachedItems.length-1;j>=0;j--){
-        const ai=attachedItems[j], p=attachedWorldPos(ai), ar=itemRadius(ai);
+        const ai=attachedItems[j], p=worldPos(ai), ar=itemRadius(ai);
         if(hit(e.x,e.y,eR, p.x,p.y,ar)){
           const kb=(ai.type.kb*params.kbMul);
           const ang2=Math.atan2(e.y-p.y,e.x-p.x);
@@ -460,25 +484,34 @@
 
     // 飛来アイテム
     for(const it of flyingItems) drawItem(it.x,it.y,it.type,it.dur,it.type.dur);
-    // 接着アイテム
-    for(const ai of attachedItems){ const p=attachedWorldPos(ai); drawItem(p.x,p.y,ai.type,ai.dur,ai.maxDur);
-      ctx.strokeStyle='#12301c'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(player.x,player.y); ctx.lineTo(p.x,p.y); ctx.stroke(); }
 
-    // 敵
+    // 接着アイテム（チェーン）：親と線で結ぶ
+    ctx.lineWidth=2; ctx.strokeStyle='#ffffff';
+    for(const ai of attachedItems){
+      const p = worldPos(ai);
+      drawItem(p.x,p.y,ai.type,ai.dur,ai.maxDur);
+      const parentPos = (ai.parent==='player') ? {x:player.x,y:player.y} : worldPos(ai.parent);
+      ctx.beginPath(); ctx.moveTo(parentPos.x,parentPos.y); ctx.lineTo(p.x,p.y); ctx.stroke();
+    }
+
+    // 敵（縁取り：黒）
     for(const e of enemies){
       const r=enemyRadius(e);
       ctx.save(); if(e.type==='BOSS'&&e.phase==='charge'){ const g=0.5+0.5*Math.abs(Math.sin(time/80)); ctx.globalAlpha=g; }
       if(e.hitFx>0){ const t=(e.hitFx/120); ctx.shadowColor=`rgba(255,255,255,${0.5*t})`; ctx.shadowBlur=16*t; }
-      ctx.fillStyle=e.color; ctx.strokeStyle='#fff'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(e.x,e.y,r,0,Math.PI*2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle=e.color; ctx.strokeStyle='#000000'; ctx.lineWidth=3;
+      ctx.beginPath(); ctx.arc(e.x,e.y,r,0,Math.PI*2); ctx.fill(); ctx.stroke();
       const bw=Math.max(20,r*1.8), bh=6, ratio=Math.max(0,Math.min(1,e.hp/e.hpMax));
       ctx.fillStyle='rgba(0,0,0,0.35)'; ctx.fillRect(e.x-bw/2,e.y-r-14,bw,bh); ctx.fillStyle='#22c55e'; ctx.fillRect(e.x-bw/2,e.y-r-14,bw*ratio,bh);
       ctx.restore();
     }
 
-    // プレイヤー
+    // プレイヤー（縁取り：黒）
     ctx.save(); if(player.inv>0) ctx.globalAlpha=0.35+0.65*Math.abs(Math.sin(time/100));
-    ctx.fillStyle='#60a5fa'; ctx.strokeStyle='#0a1b12'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(player.x,player.y,player.r,0,Math.PI*2); ctx.fill(); ctx.stroke();
-    ctx.fillStyle='#1f2937'; ctx.beginPath(); ctx.arc(player.x,player.y,6,0,Math.PI*2); ctx.fill(); ctx.restore();
+    ctx.fillStyle='#60a5fa'; ctx.strokeStyle='#000000'; ctx.lineWidth=3; // 黒枠
+    ctx.beginPath(); ctx.arc(player.x,player.y,player.r,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#1f2937'; ctx.beginPath(); ctx.arc(player.x,player.y,6,0,Math.PI*2); ctx.fill();
+    ctx.restore();
 
     // 右上WAVE表示
     ctx.fillStyle='rgba(0,0,0,0.35)'; ctx.fillRect(w-180,8,172,28);
@@ -490,15 +523,23 @@
 
   function drawItem(x,y,T,dur,maxDur){
     const ratio=Math.max(0,Math.min(1,dur/maxDur)), r=T.baseR*(0.6+0.4*ratio);
-    ctx.save(); ctx.translate(x,y); ctx.shadowColor=T.color; ctx.shadowBlur=12; ctx.fillStyle=T.color; ctx.strokeStyle='#000'; ctx.lineWidth=3;
-    if(T.shape==='circle'){ ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fill(); ctx.stroke(); }
-    else if(T.shape==='tri'){ ctx.beginPath(); ctx.moveTo(0,-r); ctx.lineTo(r*0.92,r*0.66); ctx.lineTo(-r*0.92,r*0.66); ctx.closePath(); ctx.fill(); ctx.stroke(); }
-    else{ const w=r*(T.wh?T.wh[0]:0.7), h=r*(T.wh?T.wh[1]:4.4), rr=Math.max(2,h/4);
-      ctx.beginPath(); ctx.moveTo(-w/2+rr,-h/2); ctx.lineTo(w/2-rr,-h/2);
+    ctx.save(); ctx.translate(x,y);
+    ctx.shadowColor=T.color; ctx.shadowBlur=12;
+    ctx.fillStyle=T.color; ctx.strokeStyle='#ffffff'; ctx.lineWidth=3; // アイテム枠：白
+    if(T.shape==='circle'){
+      ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    }else if(T.shape==='tri'){
+      ctx.beginPath(); ctx.moveTo(0,-r); ctx.lineTo(r*0.92,r*0.66); ctx.lineTo(-r*0.92,r*0.66); ctx.closePath(); ctx.fill(); ctx.stroke();
+    }else{
+      const w=r*(T.wh?T.wh[0]:0.7), h=r*(T.wh?T.wh[1]:4.8), rr=Math.max(2,h/4);
+      ctx.beginPath();
+      ctx.moveTo(-w/2+rr,-h/2); ctx.lineTo(w/2-rr,-h/2);
       ctx.quadraticCurveTo(w/2,-h/2,w/2,-h/2+rr); ctx.lineTo(w/2,h/2-rr);
       ctx.quadraticCurveTo(w/2,h/2,w/2-rr,h/2); ctx.lineTo(-w/2+rr,h/2);
       ctx.quadraticCurveTo(-w/2,h/2,-w/2,h/2-rr); ctx.lineTo(-w/2,-h/2+rr);
-      ctx.quadraticCurveTo(-w/2,-h/2,-w/2+rr,-h/2); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+      ctx.quadraticCurveTo(-w/2,-h/2,-w/2+rr,-h/2); ctx.closePath();
+      ctx.fill(); ctx.stroke();
+    }
     ctx.restore();
   }
 
@@ -517,7 +558,8 @@
   btnHow.addEventListener('click', ()=>alert([
     '■ルール',
     '・アイテム（◯△▭）は接着上限なし。画面上の総数はスライダーで 3〜8 を設定',
-    '・ノックバック：◯=中 / △=大(強) / ▭=弱（さらに倍率スライダーで全体調整）',
+    '・ノックバック倍率は 1〜10 倍。◯=中 / △=大(強) / ▭=弱',
+    '・アイテムはアイテムにも接続（チェーン状）できます',
     '・当たり順は「ノックバック → ダメージ」',
     '・敵はダメージで縮小、HP0で消滅。敵HP倍率・アイテム耐久倍率は調整可',
     '■操作：右下のスティック（PCは矢印/WASD）'
@@ -529,14 +571,6 @@
 
   /* ===== タイトル時の背景表示 & 誤スクロール抑止 ===== */
   document.addEventListener('touchmove',e=>{ if(state===STATE.PLAY) e.preventDefault(); },{passive:false});
-
-  /* ===== ゲーム実装補完（初回スポーン呼び水） ===== */
-  // ここから下は startGame() 後に使う関数を定義（変数は上位スコープのものを使用）
-  function getKBMul(){ return +params.kbMul; }
-  function doArrow(dir){ addArrow(dir); }
-
-  // 進行：advanceSpawn の中で利用（すでに定義済み）
-  // ここまで
 
 })();
 </script>
