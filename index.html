@@ -1,169 +1,237 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>見下ろし型アクションゲーム</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<title>Stick-On Battle — 決定版（確実に開始）</title>
 <style>
-  body { margin:0; overflow:hidden; background:#88cc88; font-family:sans-serif; }
-  canvas { display:block; margin:0 auto; background:#88cc88; }
-  #ui {
-    position:absolute; top:0; left:0; width:100%; height:100%;
-    display:flex; flex-direction:column; justify-content:center; align-items:center;
-    background:rgba(0,0,0,0.8); color:#fff;
-  }
-  button { font-size:20px; padding:10px 20px; margin:10px; }
-  .slider-group { margin:8px; color:white; font-size:14px; }
-  #controls { position:absolute; bottom:20px; right:20px; }
-  #stick { width:100px; height:100px; border-radius:50%; background:rgba(255,255,255,0.2); border:2px solid white; position:relative; }
-  #handle { width:40px; height:40px; border-radius:50%; background:white; position:absolute; top:30px; left:30px; }
+  :root{--panel:#0f1520;--ink:#e6edf3;--muted:#98a2b3}
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:#0b0f14;color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans JP","Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;overscroll-behavior:none}
+  #wrap{position:fixed;inset:0}
+  canvas{position:absolute;inset:0;width:100vw;height:100vh;touch-action:none}
+  .overlay{position:absolute;inset:0;display:grid;place-items:center;background:linear-gradient(#0f1520cc,#0f1520cc);padding:16px}
+  .card{width:min(980px,96vw);max-height:92vh;overflow:auto;background:var(--panel);border:1px solid #1f2937;border-radius:16px;padding:16px 16px 20px;box-shadow:0 20px 60px rgba(0,0,0,.45)}
+  h1{margin:.2em 0;font-size:clamp(22px,4.8vw,36px)}
+  .grid{display:grid;gap:12px}
+  .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+  .muted{color:var(--muted);font-size:.95em}
+  .btn{appearance:none;border:0;border-radius:12px;background:linear-gradient(180deg,#60a5fa,#2563eb);color:white;padding:12px 16px;font-weight:700;cursor:pointer;box-shadow:0 8px 20px rgba(37,99,235,.35)}
+  .btn.secondary{background:#1f2937}
+  .btn:active{transform:translateY(1px)}
+  label{display:flex;gap:10px;align-items:center;justify-content:space-between;background:#0b1220;border:1px solid #1f2937;border-radius:12px;padding:10px 12px}
+  input[type="range"]{width:240px} select,input[type="checkbox"]{accent-color:#60a5fa}
+  .hidden{display:none !important}
+
+  /* HUD */
+  #hud{position:absolute;inset:0;pointer-events:none}
+  #hudBar{position:absolute;left:10px;top:10px;display:flex;gap:10px;align-items:center}
+  #lifeBar{width:200px;height:14px;border:1px solid #334155;border-radius:999px;background:#0b1220;overflow:hidden}
+  #lifeFill{height:100%;background:linear-gradient(90deg,#22c55e,#84cc16);width:100%}
+  #wave{font-weight:700} #score{font-weight:700;margin-left:8px} #combo{margin-left:8px;color:#fbbf24;font-weight:700}
+
+  /* 仮想スティック（右下固定） */
+  #joy{position:absolute;right:12px;bottom:12px;width:min(34vw,200px);height:min(34vw,200px);touch-action:none;pointer-events:auto}
+  .joy-base{position:absolute;inset:0;border-radius:50%;border:2px dashed #334155;background:#0b122088}
+  .joy-knob{--r:26%;position:absolute;left:50%;top:50%;width:var(--r);height:var(--r);border-radius:50%;transform:translate(-50%,-50%);background:#1f2937;border:2px solid #64748b;box-shadow:0 4px 14px rgba(0,0,0,.45)}
 </style>
 </head>
 <body>
-<div id="ui">
-  <h1>見下ろし型アクションゲーム</h1>
-  <button id="startBtn">ゲーム開始</button>
-  <div class="slider-group">
-    アイテム最大数: <input type="range" id="itemMaxSlider" min="3" max="15" value="8"> <span id="itemMaxVal">8</span>
+<div id="wrap">
+  <canvas id="cv" width="1280" height="720" aria-label="game-canvas"></canvas>
+
+  <!-- HUD -->
+  <div id="hud" class="hidden" aria-hidden="true">
+    <div id="hudBar">
+      <div id="lifeBar"><div id="lifeFill"></div></div>
+      <div id="wave">WAVE 1</div>
+      <div id="score">SCORE 0</div>
+      <div id="combo"></div>
+    </div>
   </div>
-  <div class="slider-group">
-    ノックバック倍率: <input type="range" id="knockbackSlider" min="1" max="10" value="3"> <span id="knockbackVal">3</span>
+
+  <!-- 仮想スティック -->
+  <div id="joy" class="hidden" aria-hidden="true">
+    <div class="joy-base"></div><div class="joy-knob" id="joyKnob"></div>
   </div>
-  <div class="slider-group">
-    敵ライフ: <input type="range" id="enemyHpSlider" min="1" max="20" value="5"> <span id="enemyHpVal">5</span>
+
+  <!-- タイトル：初期表示で必ず出す（ここにスタートボタン） -->
+  <div id="title" class="overlay">
+    <div class="card grid">
+      <h1>Stick-On Battle — 決定版（確実に開始）</h1>
+      <p class="muted">
+        ◯△▭をくっつけて敵にぶつける見下ろしアクション。<br>
+        ノックバックは<strong>インパルス物理</strong>で滑らか、画面外へ出ません。<br>
+        アイテムは<strong>アイテムにも接続</strong>（チェーン接着）。<br>
+        枠色：<b>敵＆プレイヤー=黒 / アイテム=白</b>。
+      </p>
+      <div class="grid">
+        <label>難易度
+          <span><select id="difficulty">
+              <option value="EASY">EASY</option>
+              <option value="NORMAL" selected>NORMAL</option>
+              <option value="HARD">HARD</option>
+          </select></span>
+        </label>
+        <label>画面シェイク <span><input id="optShake" type="checkbox" checked></span></label>
+        <label>サウンド <span><input id="optSound" type="checkbox"></span></label>
+
+        <!-- ★ 上限を 15 に拡張 -->
+        <label>アイテム総数（画面上） <span><output id="oMaxItem">5</output> 個</span>
+          <input id="sMaxItem" type="range" min="3" max="15" step="1" value="5">
+        </label>
+        <label>敵ライフ倍率 <span><output id="oEnemyHP">1.0</output> x</span>
+          <input id="sEnemyHP" type="range" min="0.5" max="3.0" step="0.1" value="1.0">
+        </label>
+        <label>アイテム耐久倍率 <span><output id="oItemDur">1.0</output> x</span>
+          <input id="sItemDur" type="range" min="0.5" max="3.0" step="0.1" value="1.0">
+        </label>
+        <label>ノックバック倍率 <span><output id="oKBMul">1.0</output> x</span>
+          <input id="sKBMul" type="range" min="1" max="10" step="0.1" value="1.0">
+        </label>
+        <label>敵の出現間隔 <span><output id="oEnemy">900</output> ms</span>
+          <input id="sEnemy" type="range" min="250" max="1600" step="50" value="900">
+        </label>
+        <label>アイテムの出現間隔 <span><output id="oItem">1100</output> ms</span>
+          <input id="sItem" type="range" min="600" max="3000" step="50" value="1100">
+        </label>
+        <label>プレイヤー移動速度 <span><output id="oSpeed">260</output> px/s</span>
+          <input id="sSpeed" type="range" min="160" max="380" step="10" value="260">
+        </label>
+      </div>
+      <div class="row">
+        <button id="btnStart" class="btn" type="button" aria-label="ゲーム開始">ゲーム開始</button>
+        <button id="btnHow" class="btn secondary" type="button">遊び方</button>
+      </div>
+      <p id="hiscoreLine" class="muted"></p>
+    </div>
   </div>
-  <div class="slider-group">
-    アイテム耐久値: <input type="range" id="itemDurSlider" min="1" max="10" value="5"> <span id="itemDurVal">5</span>
+
+  <!-- 結果オーバーレイ -->
+  <div id="gameover" class="overlay hidden" aria-hidden="true">
+    <div class="card" style="text-align:center">
+      <h2>GAME OVER</h2>
+      <p class="muted">もう一度挑戦！</p>
+      <div class="row" style="justify-content:center">
+        <button id="btnRetry1" class="btn" type="button">タイトルへ</button>
+        <button id="btnRestart1" class="btn secondary" type="button">同じ設定で再開</button>
+      </div>
+    </div>
+  </div>
+  <div id="clear" class="overlay hidden" aria-hidden="true">
+    <div class="card" style="text-align:center">
+      <h2>STAGE CLEAR!</h2>
+      <pre id="clearStats" class="muted"></pre>
+      <div class="row" style="justify-content:center">
+        <button id="btnRetry2" class="btn" type="button">タイトルへ</button>
+        <button id="btnRestart2" class="btn secondary" type="button">同じ設定で再開</button>
+      </div>
+    </div>
   </div>
 </div>
-<canvas id="gameCanvas"></canvas>
-<div id="controls">
-  <div id="stick"><div id="handle"></div></div>
-</div>
+
 <script>
-const canvas = document.getElementById("gameCanvas");
-const ctx = canvas.getContext("2d");
-let W = window.innerWidth, H = window.innerHeight;
-canvas.width = W; canvas.height = H;
+/* =========================================================
+   Stick-On Battle — 決定版（確実に開始）＋ アイテム上限15
+========================================================= */
+(() => {
+  'use strict';
 
-let gameRunning = false;
-let items = [], enemies = [];
-let player = {x:W/2,y:H/2,r:20,hp:10};
-let joystick = {active:false,dx:0,dy:0};
-let itemMax = 8, knockbackRate = 3, enemyHpBase=5, itemDurBase=5;
+  /* ---------- キャンバス & 背景 ---------- */
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
 
-// UI操作
-document.getElementById("itemMaxSlider").oninput=e=>{
-  itemMax=parseInt(e.target.value);
-  document.getElementById("itemMaxVal").innerText=itemMax;
-};
-document.getElementById("knockbackSlider").oninput=e=>{
-  knockbackRate=parseInt(e.target.value);
-  document.getElementById("knockbackVal").innerText=knockbackRate;
-};
-document.getElementById("enemyHpSlider").oninput=e=>{
-  enemyHpBase=parseInt(e.target.value);
-  document.getElementById("enemyHpVal").innerText=enemyHpBase;
-};
-document.getElementById("itemDurSlider").oninput=e=>{
-  itemDurBase=parseInt(e.target.value);
-  document.getElementById("itemDurVal").innerText=itemDurBase;
-};
-
-document.getElementById("startBtn").onclick=()=>{
-  document.getElementById("ui").style.display="none";
-  startGame();
-};
-
-function startGame(){
-  gameRunning=true;
-  items=[]; enemies=[];
-  player={x:W/2,y:H/2,r:20,hp:10};
-  spawnEnemy();
-  requestAnimationFrame(loop);
-}
-
-function spawnEnemy(){
-  let side=Math.floor(Math.random()*4);
-  let x= side==0?0: side==1?W:Math.random()*W;
-  let y= side==2?0: side==3?H:Math.random()*H;
-  enemies.push({x,y,r:20,hp:enemyHpBase});
-}
-
-function spawnItem(){
-  if(items.length>=itemMax) return;
-  let side=Math.floor(Math.random()*4);
-  let x= side==0?0: side==1?W:Math.random()*W;
-  let y= side==2?0: side==3?H:Math.random()*H;
-  let type=["circle","triangle","rect"][Math.floor(Math.random()*3)];
-  items.push({x,y,r:15,type,hp:itemDurBase});
-}
-
-setInterval(()=>{if(gameRunning) spawnEnemy();},3000);
-setInterval(()=>{if(gameRunning) spawnItem();},2000);
-
-function loop(){
-  if(!gameRunning) return;
-  ctx.fillStyle="#88cc88"; ctx.fillRect(0,0,W,H); // 草原背景
-
-  // player移動
-  player.x+=joystick.dx*4;
-  player.y+=joystick.dy*4;
-  player.x=Math.max(player.r,Math.min(W-player.r,player.x));
-  player.y=Math.max(player.r,Math.min(H-player.r,player.y));
-
-  // draw player
-  ctx.strokeStyle="black"; ctx.fillStyle="blue";
-  ctx.beginPath(); ctx.arc(player.x,player.y,player.r,0,Math.PI*2); ctx.fill(); ctx.stroke();
-
-  // draw items
-  items.forEach(it=>{
-    ctx.strokeStyle="white"; ctx.fillStyle= it.type=="circle"?"cyan":it.type=="triangle"?"yellow":"orange";
-    ctx.beginPath();
-    if(it.type=="circle"){ctx.arc(it.x,it.y,it.r,0,Math.PI*2);}
-    else if(it.type=="triangle"){
-      ctx.moveTo(it.x,it.y-it.r); ctx.lineTo(it.x-it.r,it.y+it.r); ctx.lineTo(it.x+it.r,it.y+it.r); ctx.closePath();
-    }else{
-      ctx.rect(it.x-it.r*1.5,it.y-it.r,it.r*3,it.r*2); // 長方形を長め
+  let bgCan=null, bgCtx=null;
+  function buildBackground(w,h){
+    bgCan=document.createElement('canvas'); bgCan.width=w; bgCan.height=h; bgCtx=bgCan.getContext('2d');
+    const g=bgCtx.createLinearGradient(0,0,0,h); g.addColorStop(0,'#114d2c'); g.addColorStop(1,'#1f7a3b');
+    bgCtx.fillStyle=g; bgCtx.fillRect(0,0,w,h);
+    function srand(i){const x=Math.sin(i*1337.77)*10000; return x-Math.floor(x);}
+    bgCtx.globalAlpha=0.14;
+    for(let i=0;i<18;i++){
+      const px=srand(i+1)*w, py=srand(i+2)*h, rx=120+srand(i+3)*160, ry=60+srand(i+4)*120, ang=srand(i+5)*Math.PI*2;
+      bgCtx.save(); bgCtx.translate(px,py); bgCtx.rotate(ang);
+      bgCtx.fillStyle=(i%2===0)?'#2aa357':'#0e5e33';
+      bgCtx.beginPath(); bgCtx.ellipse(0,0,rx,ry,0,0,Math.PI*2); bgCtx.fill(); bgCtx.restore();
     }
-    ctx.fill(); ctx.stroke();
-  });
+    bgCtx.globalAlpha=1;
+    bgCtx.strokeStyle='rgba(255,255,255,0.05)'; bgCtx.lineWidth=1;
+    for(let x=0;x<w;x+=40){ bgCtx.beginPath(); bgCtx.moveTo(x,0);
+      bgCtx.quadraticCurveTo(x+15,h*0.33,x,h*0.66); bgCtx.quadraticCurveTo(x-15,h*0.83,x,h); bgCtx.stroke(); }
+  }
+  function fitCanvas(){
+    const w=Math.max(1,Math.floor(innerWidth)), h=Math.max(1,Math.floor(innerHeight));
+    const dpr=Math.max(1,Math.min(2,devicePixelRatio||1));
+    cv.style.width=w+'px'; cv.style.height=h+'px';
+    cv.width=Math.floor(w*dpr); cv.height=Math.floor(h*dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    buildBackground(w,h);
+  }
+  fitCanvas();
+  addEventListener('resize', fitCanvas, {passive:true});
+  addEventListener('orientationchange', ()=>setTimeout(fitCanvas,100), {passive:true});
 
-  // draw enemies
-  enemies.forEach(en=>{
-    ctx.strokeStyle="black"; ctx.fillStyle="red";
-    ctx.beginPath(); ctx.arc(en.x,en.y,en.r,0,Math.PI*2); ctx.fill(); ctx.stroke();
-    // 移動
-    let dx=player.x-en.x, dy=player.y-en.y, d=Math.hypot(dx,dy);
-    en.x+=dx/d*1.5; en.y+=dy/d*1.5;
-    // 当たり判定
-    if(d<player.r+en.r){
-      player.hp--; en.hp--;
-    }
-  });
+  /* ---------- DOM ---------- */
+  const hud=document.getElementById('hud');
+  const lifeFill=document.getElementById('lifeFill');
+  const waveLabel=document.getElementById('wave');
+  const scoreLabel=document.getElementById('score');
+  const comboLabel=document.getElementById('combo');
+  const title=document.getElementById('title');
+  const over=document.getElementById('gameover');
+  const clear=document.getElementById('clear');
+  const joy=document.getElementById('joy');
+  const joyKnob=document.getElementById('joyKnob');
 
-  // update敵ライフ
-  enemies.forEach(en=>{
-    if(en.hp<=0) en.dead=true;
-    else en.r=20*(en.hp/enemyHpBase);
-  });
-  enemies=enemies.filter(e=>!e.dead);
+  const btnStart=document.getElementById('btnStart');
+  const btnHow=document.getElementById('btnHow');
+  const btnRetry1=document.getElementById('btnRetry1');
+  const btnRestart1=document.getElementById('btnRestart1');
+  const btnRetry2=document.getElementById('btnRetry2');
+  const btnRestart2=document.getElementById('btnRestart2');
 
-  requestAnimationFrame(loop);
-}
+  const difficultySel=document.getElementById('difficulty');
+  const optShake=document.getElementById('optShake');
+  const optSound=document.getElementById('optSound');
 
-// joystick
-const stick=document.getElementById("stick"), handle=document.getElementById("handle");
-stick.addEventListener("touchstart",e=>{joystick.active=true;});
-stick.addEventListener("touchend",e=>{joystick.active=false; joystick.dx=0; joystick.dy=0; handle.style.left="30px"; handle.style.top="30px";});
-stick.addEventListener("touchmove",e=>{
-  if(!joystick.active) return;
-  let rect=stick.getBoundingClientRect();
-  let x=e.touches[0].clientX-rect.left-50, y=e.touches[0].clientY-rect.top-50;
-  let d=Math.hypot(x,y); if(d>40){x*=40/d; y*=40/d;}
-  joystick.dx=x/40; joystick.dy=y/40;
-  handle.style.left=(30+x)+"px"; handle.style.top=(30+y)+"px";
-});
-</script>
-</body>
-</html>
+  const sEnemy=document.getElementById('sEnemy'), oEnemy=document.getElementById('oEnemy');
+  const sItem=document.getElementById('sItem'), oItem=document.getElementById('oItem');
+  const sSpeed=document.getElementById('sSpeed'), oSpeed=document.getElementById('oSpeed');
+  const sMaxItem=document.getElementById('sMaxItem'), oMaxItem=document.getElementById('oMaxItem');
+  const sEnemyHP=document.getElementById('sEnemyHP'), oEnemyHP=document.getElementById('oEnemyHP');
+  const sItemDur=document.getElementById('sItemDur'), oItemDur=document.getElementById('oItemDur');
+  const sKBMul=document.getElementById('sKBMul'), oKBMul=document.getElementById('oKBMul');
+
+  const clearStats=document.getElementById('clearStats');
+  const hiscoreLine=document.getElementById('hiscoreLine');
+
+  /* ---------- スライダー表示同期 ---------- */
+  const bindRange=(r,o,f=(v)=>v)=>{ const sync=()=>o.textContent=f(r.value); r.addEventListener('input',sync,{passive:true}); sync(); };
+  bindRange(sEnemy,oEnemy); bindRange(sItem,oItem); bindRange(sSpeed,oSpeed);
+  bindRange(sMaxItem,oMaxItem); bindRange(sEnemyHP,oEnemyHP,v=>(+v).toFixed(1));
+  bindRange(sItemDur,oItemDur,v=>(+v).toFixed(1)); bindRange(sKBMul,oKBMul,v=>(+v).toFixed(1));
+
+  /* ---------- サウンド ---------- */
+  let audioCtx=null;
+  function beep(kind='hit'){
+    if(!optSound.checked) return;
+    try{
+      if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+      const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+      o.type='square'; o.frequency.value=(kind==='hit')?420:(kind==='pickup'?740:(kind==='dead'?220:520));
+      g.gain.value=0.08; o.connect(g); g.connect(audioCtx.destination);
+      o.start(); o.stop(audioCtx.currentTime+0.09);
+    }catch{}
+  }
+
+  /* ---------- 入力（仮想スティック＋キーボード） ---------- */
+  const input={x:0,y:0,active:false,id:null,cx:0,cy:0,rad:1};
+  function layoutJoystick(){ const r=joy.getBoundingClientRect(); input.cx=r.width/2; input.cy=r.height/2; input.rad=Math.max(30,Math.min(r.width,r.height)*0.38); }
+  function stickSet(dx,dy){ const len=Math.hypot(dx,dy), max=input.rad; const nx=len?dx/len:0, ny=len?dy/len:0, mag=Math.min(len,max);
+    joyKnob.style.transform=`translate(${nx*mag}px,${ny*mag}px) translate(-50%,-50%)`; input.x=(mag/max)*nx; input.y=(mag/max)*ny; }
+  function stickReset(){ input.x=input.y=0; joyKnob.style.transform='translate(-50%,-50%)'; }
+  joy.addEventListener('pointerdown',e=>{ if(input.active)return; input.active=true; input.id=e.pointerId; try{joy.setPointerCapture(e.pointerId);}catch{}
+    const r=joy.getBoundingClientRect(); stickSet(e.clientX-(r.left+input.cx), e.clientY-(r.top+input.cy)); e.preventDefault();});
+  joy.addEventListener('pointermove',e=>{ if(!input.active||e.pointerId!==input.id)return; const r=joy.getBoundingClientRect();
+    stickSet(e.clientX-(r.left+input.cx), e.clientY-(r.top+input.cy)); e.preventDefault();});
+  function endStick(e){ if(!input.active||(e && e.pointerId!==input.id))return; input
