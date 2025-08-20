@@ -234,4 +234,30 @@
     const r=joy.getBoundingClientRect(); stickSet(e.clientX-(r.left+input.cx), e.clientY-(r.top+input.cy)); e.preventDefault();});
   joy.addEventListener('pointermove',e=>{ if(!input.active||e.pointerId!==input.id)return; const r=joy.getBoundingClientRect();
     stickSet(e.clientX-(r.left+input.cx), e.clientY-(r.top+input.cy)); e.preventDefault();});
-  function endStick(e){ if(!input.active||(e && e.pointerId!==input.id))return; input
+  function endStick(e){ if(!input.active||(e && e.pointerId!==input.id))return; input.active=false; input.id=null; stickReset(); }
+  joy.addEventListener('pointerup',endStick); joy.addEventListener('pointercancel',endStick);
+
+  const keys=new Set(); addEventListener('keydown',e=>{keys.add(e.key.toLowerCase())},{passive:true}); addEventListener('keyup',e=>{keys.delete(e.key.toLowerCase())},{passive:true});
+
+  /* ---------- ユーティリティ ---------- */
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  const rnd=(a,b)=>a+Math.random()*(b-a);
+  const dist2=(ax,ay,bx,by)=>{const dx=ax-bx,dy=ay-by;return dx*dx+dy*dy;}
+  const hit=(ax,ay,ar,bx,by,br)=> dist2(ax,ay,bx,by) <= (ar+br)*(ar+br);
+
+  /* ---------- タイプ定義 ---------- */
+  const ITEM_TYPES=[
+    {k:'CIR',shape:'circle', atk:8,  dur:8, baseR:18, color:'#60a5fa', kb:28}, // 中
+    {k:'TRI',shape:'tri',    atk:16, dur:5, baseR:20, color:'#ff80ab', kb:48}, // 大(強)
+    {k:'REC',shape:'rect',   atk:12, dur:3, baseR:15, color:'#ffd166', kb: 8, wh:[0.7,4.8]}, // 弱・縦長
+  ];
+  const ENEMY_TYPES={
+    A:{ hp:12,  dmg:10,  spd:70,  baseR:14, color:'#9b59b6'},
+    B:{ hp:18,  dmg:12,  spd:100, baseR:12, color:'#e74c3c'},
+    C:{ hp:30,  dmg:16,  spd:55,  baseR:18, color:'#f39c12'},
+    MID:{hp:120, dmg:20, spd:60,  baseR:28, color:'#16a085'},
+    BOSS:{hp:360, dmg:28, spd:70, baseR:34, color:'#e67e22'},
+  };
+  const DIR8=[[0,-1],[0.707,-0.707],[1,0],[0.707,0.707],[0,1],[-0.707,0.707],[-1,0],[-0.707,-0.707]];
+  const WAVES=[
+    {name:'WAVE
